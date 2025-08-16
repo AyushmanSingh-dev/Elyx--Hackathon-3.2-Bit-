@@ -54,8 +54,8 @@
         const ReactDOM = window.ReactDOM;
         const Chart = window.Chart; // Access Chart.js from global scope
 
-        // --- NavItem Component (defined locally) ---
-        // NavItem is now defined directly within this script, no import needed.
+        // --- NavItem Component (defined locally within this script) ---
+        // No import needed as it's in the same file.
         const NavItem = ({ label, section, activeSection, setActiveSection }) => {
             const React = window.React; // Access React from global scope
             return (
@@ -66,8 +66,8 @@
             );
         };
 
-        // --- Sample Journey Data (Embedded) ---
-        // This data is now defined directly within this script, no import needed.
+        // --- Sample Journey Data (Embedded directly in this script) ---
+        // No import needed as it's in the same file.
         const sampleJourneyData = [
             { type: "message", sender: "Rohan", timestamp: "2025-08-01 10:00", content: "Ruby, I'm feeling overwhelmed with my ad-hoc health routine. High work stress, and my Garmin HR seems off even on rest days. I need a proper, coordinated plan. My current supplement list is attached.", pillar: null, relatedTo: null },
             { type: "message", sender: "Ruby", timestamp: "2025-08-01 10:05", content: "Hi Rohan, thank you for sharing this. We understand. Our goal is to bring coordination to your health. I'm flagging your concerns for Dr. Warren to review immediately. We're here to make this seamless for you.", pillar: null, relatedTo: "Rohan_Initial" },
@@ -102,8 +102,8 @@
             const apoBChartRef = useRef(null);
             const interactionChartRef = useRef(null);
 
-            // IMPORTANT: Replace this with YOUR ACTUAL RENDER BACKEND URL
-            const BACKEND_API_BASE_URL = "https://elyx-hackathon-4.onrender.com"; // <-- Update this line with your Render URL!
+            // IMPORTANT: Updated to your specific Render Backend URL
+            const BACKEND_API_BASE_URL = "https://elyx-hackathon-3-2-bit.onrender.com"; // Your Render Backend URL!
 
             // Function to fetch the 8-month journey data from the backend
             const fetchJourneyData = useCallback(async () => {
