@@ -46,7 +46,6 @@ ELYX_TEAM_PERSONAS = {
 }
 
 # --- Simulated Health Metrics (dynamic & global for generation) ---
-# This dictionary will be modified during the journey generation to reflect changes.
 CURRENT_HEALTH_METRICS = {
     "HRV": 45, # ms
     "RestingHR": 65, # bpm
@@ -57,6 +56,9 @@ CURRENT_HEALTH_METRICS = {
     "POTS_symptoms": "moderate", # mild, moderate, severe
     "BackPain": "mild" # none, mild, moderate, severe
 }
+
+# --- Global variable to track Rohan's recently asked topics for memory ---
+ROHAN_ASKED_TOPICS = set()
 
 # --- LLM Response Function (Simulated & Enriched) ---
 def generate_llm_response(role, prompt_context, current_metrics, chat_history, journey_data_so_far):
@@ -74,106 +76,135 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
     # --- Rohan's Responses (Patient Concerns & Priorities) ---
     if role == "Rohan":
         service_interaction_type = "member-initiated query"
-        if "coordinated plan" in prompt_lower:
-            response_text = random.choice([
+        
+        # Define a pool of Rohan's questions, categorized by topic
+        rohan_query_pool = {
+            "initial_plan": [
                 "Ruby, I'm feeling overwhelmed with my ad-hoc health routine. High work stress, and my Garmin HR seems off even on rest days. I need a proper, coordinated plan. My current supplement list is attached.",
                 "My current health efforts feel disjointed. Can we establish a more cohesive plan? My wearable data feels inconsistent.",
                 "I'm ready for a structured health approach. My current stress levels are high, and my Garmin data isn't reflecting recovery. Attached is my supplement list.",
                 "The current health approach isn't sustainable for my schedule. I need a streamlined, effective plan. My metrics are concerning."
-            ])
-        elif "medical records" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "medical_records": [
                 "Acknowledged. How long will that take? And what about my fitness goals?",
                 "Understood. What's the typical turnaround for record consolidation? Also, let's discuss optimizing my workouts.",
                 "Okay, I'll ensure Sarah assists with records. Separately, I'm keen to refine my fitness strategy.",
                 "Records are in progress. Meanwhile, I'm eager to discuss my exercise regimen and how to maximize its impact."
-            ])
-        elif "movement assessment" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "movement_assessment": [
                 "Understood. I'm also thinking about my stress levels. Any immediate tips?",
                 "A movement assessment makes sense. On another note, I've been feeling more stressed. Any quick stress relief techniques?",
                 "Good. While we schedule that, what are some immediate strategies for managing cognitive load?",
                 "I'm on board for the assessment. What are some rapid techniques for mental clarity and stress reduction?"
-            ])
-        elif "couch stretch" in prompt_lower and "helped" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "couch_stretch": [
                 "The couch stretch helped a bit! Also, for stress, any immediate dietary tips? I struggle with consistent energy.",
                 "That stretch provided some relief. What about nutritional strategies for managing stress and energy dips?",
                 "Good call on the stretch. What are some quick dietary hacks for energy and stress during busy days?",
                 "The stretch was beneficial. Now, can we address nutritional support for my energy levels and stress resilience?"
-            ])
-        elif "diagnostic panel" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "diagnostic_panel": [
                 "Yes, next Tuesday works. Confirmed. I'm keen to see the numbers, though I'm always a bit skeptical until I see tangible results.",
                 "Tuesday works for diagnostics. I'm interested in the data, but I need to see actionable insights, not just numbers.",
                 "Confirmed for diagnostics next week. I value data, but ultimately, it's about practical improvements. What should I expect?",
                 "I've scheduled the diagnostic panel for Tuesday. What are the key metrics we're tracking, and how will they inform my plan?"
-            ])
-        elif "apo b" in prompt_lower or "apob" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "apo_b": [
                 "What's the plan for the ApoB? I want clear, actionable steps. Monetary factors are important too.",
                 "Elevated ApoB is a concern. What are the most effective, efficient interventions? Please consider cost-effectiveness.",
                 "Understood on ApoB. Let's prioritize interventions. Are there any cost-efficient alternatives for dietary changes or supplements?",
                 "Given the ApoB results, what's the immediate, high-impact strategy? I need to know the financial implications and time commitment."
-            ])
-        elif "jet lag" in prompt_lower or "travel" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "travel": [
                 "This sounds critical. I need a clear, minute-by-minute guide for my upcoming trip. How can we make it time-efficient?",
                 "My travel schedule is intense. What's the most time-efficient jet lag protocol? I need practical advice for on-the-go.",
                 "Preparing for travel. What are the key strategies to minimize disruption to my health, especially given my limited time?",
                 "Upcoming international travel. What specific protocols can I implement to mitigate jet lag and maintain my routine effectively?"
-            ])
-        elif "not feeling great" in prompt_lower or "illness" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "illness": [
                 "This is a major setback. The board meeting is critical. What's the immediate plan? I need to maximize my recovery output.",
                 "Feeling unwell. This is impacting my ability to perform. What's the fastest way to recover without compromising long-term health?",
                 "I'm experiencing symptoms. What's the Elyx protocol for this? I need to get back on track efficiently.",
                 "I'm feeling a dip in health. What's the recommended course of action to minimize downtime and prevent further impact on my schedule?"
-            ])
-        elif "recovery" in prompt_lower and "green" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "recovery": [
                 "Good. I feel it. Let's get back to the plan.",
                 "Excellent. I'm seeing the positive effects. What's the next optimization?",
                 "Great news on recovery. I'm ready for the next challenge.",
                 "My recovery metrics are strong. What advanced strategies can we implement now to push further?"
-            ])
-        elif "piano" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "piano": [
                 "I've always wanted to learn piano. From a health and performance perspective, is this a worthwhile use of my time?",
                 "Considering learning piano. What are the cognitive benefits, and how does it fit into my overall health investment strategy?",
                 "Is piano a good investment for cognitive longevity and stress? What's the commitment like?",
                 "I'm exploring new hobbies. Is learning piano a recommended activity for long-term brain health and stress reduction?"
-            ])
-        elif "poor digestion" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "poor_digestion": [
                 "I'm experiencing poor digestion. Any suggestions that are easy to integrate into my busy schedule?",
                 "What are some practical dietary adjustments for improving digestion, considering my travel and time constraints?",
                 "My digestion feels off. Are there any simple, effective strategies I can implement immediately?",
                 "Can you provide quick, actionable tips for better digestion that won't disrupt my routine?"
-            ])
-        elif "monetary" in prompt_lower or "cost" in prompt_lower or "expensive" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "monetary_concern": [
                 "I'm looking for cost-effective options. Can you suggest alternatives for X?",
                 "How can we optimize for value without compromising results? Are there budget-friendly alternatives?",
                 "What's the ROI on this recommendation, and are there less expensive but still effective options?",
                 "I need to balance health investments with financial prudence. What are some high-impact, low-cost recommendations?"
-            ])
-        elif "time" in prompt_lower or "busy" in prompt_lower or "quick" in prompt_lower:
-            response_text = random.choice([
+            ],
+            "time_constraint": [
                 "I have limited time. What's the most time-efficient way to achieve Y?",
                 "My schedule is packed. Can we focus on high-impact, low-time-commitment interventions?",
                 "What are some quick wins for health that fit into a demanding schedule?",
                 "I need strategies that deliver maximum health output for minimal time investment. Any suggestions?"
-            ])
-        else:
-            response_text = random.choice([
-                "Understood. Thanks for the update. What's next?",
-                "Okay, I'll look into that. Is there a more efficient way?",
-                "Good. Let's keep pushing that number down. Any tips for integrating this seamlessly?",
-                "I'm starting to look for a piano. I see this as part of my health investment.",
+            ],
+            "general_query": [
                 "I'm curious about optimizing my current routine. Any thoughts on that?",
-                "What's the latest insight from my data? Any new areas of focus?"
-            ])
+                "What's the latest insight from my data? Any new areas of focus?",
+                "Just checking in. Any new recommendations based on my overall progress?",
+                "What's the overarching strategy for the next phase of my health journey?"
+            ]
+        }
+
+        # Determine Rohan's question based on prompt_context and avoid recent repetition
+        chosen_key = None
+        if "initial onboarding" in prompt_lower:
+            chosen_key = "initial_plan"
+        elif "medical records" in prompt_lower:
+            chosen_key = "medical_records"
+        elif "movement assessment" in prompt_lower:
+            chosen_key = "movement_assessment"
+        elif "couch stretch" in prompt_lower and "helped" in prompt_lower:
+            chosen_key = "couch_stretch"
+        elif "diagnostic panel" in prompt_lower:
+            chosen_key = "diagnostic_panel"
+        elif "apo b" in prompt_lower or "apob" in prompt_lower:
+            chosen_key = "apo_b"
+        elif "jet lag" in prompt_lower or "travel" in prompt_lower:
+            chosen_key = "travel"
+        elif "not feeling great" in prompt_lower or "illness" in prompt_lower:
+            chosen_key = "illness"
+        elif "recovery" in prompt_lower and "green" in prompt_lower:
+            chosen_key = "recovery"
+        elif "piano" in prompt_lower:
+            chosen_key = "piano"
+        elif "poor digestion" in prompt_lower:
+            chosen_key = "poor_digestion"
+        elif "monetary" in prompt_lower or "cost" in prompt_lower or "expensive" in prompt_lower:
+            chosen_key = "monetary_concern"
+        elif "time" in prompt_lower or "busy" in prompt_lower or "quick" in prompt_lower:
+            chosen_key = "time_constraint"
+        else:
+            chosen_key = "general_query"
+        
+        # Select a response from the pool, ensuring it's not a recent duplicate
+        available_queries = [q for q in rohan_query_pool[chosen_key] if q not in ROHAN_ASKED_TOPICS]
+        if not available_queries: # If all queries for this topic have been used recently, reset or pick general
+            ROHAN_ASKED_TOPICS.clear() # Clear memory if exhausted
+            available_queries = rohan_query_pool["general_query"]
+        
+        response_text = random.choice(available_queries)
+        ROHAN_ASKED_TOPICS.add(response_text) # Add the chosen query to memory
+
     # --- Elyx Team Member Responses (Prioritizing, Value-Driven, Adaptable) ---
     else:
         service_interaction_type = "proactive check-in" if "check-in" in prompt_lower else "intervention update"
@@ -307,7 +338,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
                 "We understand your time constraints. Our goal is to seamlessly integrate health into your busy life. We can focus on micro-interventions, like 5-minute mobility breaks or strategic meal prepping with Javier, to maximize health output with minimal time investment.",
                 "Your time is precious. We design interventions for maximum impact in minimal time. Think strategic 10-minute bursts, or leveraging your cook for efficient meal prep, turning health into an integrated lifestyle, not a chore.",
                 "We specialize in optimizing for busy schedules. We'll streamline your health activities, focusing on high-leverage actions that fit into your existing routine, ensuring consistent progress without adding burden.",
-                "Elyx excels at time-optimization. We'll identify high-impact, low-time interventions and integrate them seamlessly into your demanding schedule, maximizing your health benefits without adding friction."
+                "Elyx excels at time-optimization. We'll identify high-impact, low-time interventions and integrate them seamlessly into your demanding schedule, maximizing your health benefits without friction."
             ])
             decision_rationale = "Adapting the plan to Rohan's severe time constraints by focusing on micro-interventions and efficient strategies, ensuring health activities are integrated seamlessly and maximize output per minute invested."
             time_efficiency = "Focus on micro-interventions and strategic planning."
@@ -345,6 +376,9 @@ def api_generate_journey():
         "HRV": 45, "RestingHR": 65, "GlucoseAvg": 105, "ApoB": 105,
         "RecoveryScore": 70, "DeepSleep": 60, "POTS_symptoms": "moderate", "BackPain": "mild"
     }
+    # Clear Rohan's memory for a fresh simulation
+    global ROHAN_ASKED_TOPICS
+    ROHAN_ASKED_TOPICS.clear()
 
     # Initial onboarding
     rohan_msg, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", "Initial onboarding: I need a proper, coordinated plan. My Garmin HR seems off.", CURRENT_HEALTH_METRICS, chat_history, journey_data)
@@ -636,13 +670,41 @@ def api_generate_journey():
             CURRENT_HEALTH_METRICS["DeepSleep"] -= random.randint(0, 15)
 
         # --- Member-Initiated Queries (Up to 5 per week on average) ---
+        # This section now uses the ROHAN_ASKED_TOPICS set for memory
         if random.random() < 0.7: # Simulate Rohan asking questions
             num_questions = random.randint(1, 3) # Simulate 1-3 questions per week
             for _ in range(num_questions):
-                query_topics = ["poor digestion", "stress", "sleep", "HRV", "cognitive function", "new product", "alternative exercise", "monetary concern", "time constraint"]
-                chosen_topic = random.choice(query_topics)
+                # Define a pool of Rohan's questions, categorized by topic
+                query_pool = {
+                    "poor digestion": ["I'm experiencing poor digestion. Any suggestions that are easy to integrate into my busy schedule?", "What are some practical dietary adjustments for improving digestion, considering my travel and time constraints?", "My digestion feels off. Are there any simple, effective strategies I can implement immediately?", "Can you provide quick, actionable tips for better digestion that won't disrupt my routine?"],
+                    "stress": ["I'm feeling stressed. Any immediate tips for managing cognitive load?", "What are some quick stress relief techniques I can use on the go?", "How can I better manage my work-related stress without impacting my schedule?", "Are there any low-cost strategies for reducing daily stress?"],
+                    "sleep": ["My sleep quality has been poor. Any immediate suggestions?", "What are some practical tips for improving deep sleep, even with a busy schedule?", "I'm struggling to fall asleep. Any quick bedtime routines?", "Are there any products or alternatives for better sleep that are cost-effective?"],
+                    "hrv": ["How can I improve my HRV? What factors influence it most?", "My HRV seems low. What are the most impactful interventions to raise it?", "What does my current HRV data indicate about my recovery?", "Can you explain the correlation between HRV and stress management?"],
+                    "cognitive function": ["How can I enhance my cognitive function and focus?", "Are there any brain-boosting foods or supplements you recommend?", "What exercises can improve mental clarity?", "What's the best way to maintain peak cognitive performance under pressure?"],
+                    "new product": ["Have you come across any new health products that might benefit me?", "Can you recommend a new wearable or health tech that aligns with my goals?", "Are there any cost-effective health products worth exploring?", "What are some innovative products for sleep or recovery?"],
+                    "alternative exercise": ["I need alternative exercises for when I'm traveling or short on time. Any suggestions?", "What are some effective bodyweight exercises I can do anywhere?", "Can you suggest alternatives to gym workouts that are time-efficient?", "Are there any low-impact exercise alternatives for recovery days?"],
+                    "monetary concern": ["I'm looking for cost-effective options. Can you suggest alternatives for X?", "How can we optimize for value without compromising results? Are there budget-friendly alternatives?", "What's the ROI on this recommendation, and are there less expensive but still effective options?", "I need to balance health investments with financial prudence. What are some high-impact, low-cost recommendations?"],
+                    "time constraint": ["I have limited time. What's the most time-efficient way to achieve Y?", "My schedule is packed. Can we focus on high-impact, low-time-commitment interventions?", "What are some quick wins for health that fit into a demanding schedule?", "I need strategies that deliver maximum health output for minimal time investment. Any suggestions?"],
+                    "general_query": ["Just checking in. Any new recommendations based on my overall progress?", "What's the overarching strategy for the next phase of my health journey?", "I'm curious about optimizing my current routine. Any thoughts on that?", "What's the latest insight from my data? Any new areas of focus?"]
+                }
                 
-                rohan_query, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", f"ask about {chosen_topic}. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+                # Select a topic, prioritizing those not recently asked
+                available_topics = [t for t in query_pool.keys() if t not in ROHAN_ASKED_TOPICS]
+                if not available_topics:
+                    ROHAN_ASKED_TOPICS.clear() # Clear memory if all topics exhausted
+                    available_topics = list(query_pool.keys()) # Reset to all topics
+                
+                chosen_topic = random.choice(available_topics)
+                ROHAN_ASKED_TOPICS.add(chosen_topic) # Add chosen topic to memory
+
+                # Select a specific question for that topic, avoiding recent exact duplicates
+                available_questions_for_topic = [q for q in query_pool[chosen_topic] if q not in chat_history[-5:]] # Check last 5 messages
+                if not available_questions_for_topic:
+                    available_questions_for_topic = query_pool[chosen_topic] # Reset if all questions for topic are recent
+                
+                rohan_query = random.choice(available_questions_for_topic)
+                
+                rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", rohan_query, CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 journey_data.append({
                     "type": "message", "sender": "Rohan", "timestamp": (current_date + timedelta(hours=random.randint(1, 24))).strftime("%Y-%m-%d %H:%M"),
                     "content": rohan_query, "pillar": rohan_pillar, "relatedTo": chosen_topic,
@@ -668,11 +730,11 @@ def api_generate_journey():
                 
                 # Simulate metric changes based on interventions/deviations (simplified)
                 if "stress" in chosen_topic:
-                    CURRENT_HEALTH_METRICS["HRV"] += random.randint(-3, 3)
+                    CURRENT_HEALTH_METRICS["HRV"] += random.randint(-5, 5) # Larger range for noticeable change
                 if "sleep" in chosen_topic:
-                    CURRENT_HEALTH_METRICS["DeepSleep"] += random.randint(-5, 5)
+                    CURRENT_HEALTH_METRICS["DeepSleep"] += random.randint(-15, 15) # Larger range
                 if "exercise" in chosen_topic:
-                    CURRENT_HEALTH_METRICS["RecoveryScore"] += random.randint(-3, 3)
+                    CURRENT_HEALTH_METRICS["RecoveryScore"] += random.randint(-5, 8) # Larger range
 
         # --- Simulate specific events/concerns over time ---
         if week == 5: # Simulate initial back pain flare-up
@@ -744,21 +806,26 @@ def api_generate_journey():
             })
         
         # Simulate general metric fluctuations
-        CURRENT_HEALTH_METRICS["HRV"] = max(30, CURRENT_HEALTH_METRICS["HRV"] + random.randint(-2, 4))
-        CURRENT_HEALTH_METRICS["RestingHR"] = max(50, CURRENT_HEALTH_METRICS["RestingHR"] + random.randint(-1, 1))
-        CURRENT_HEALTH_METRICS["GlucoseAvg"] = random.randint(90, 100)
-        CURRENT_HEALTH_METRICS["RecoveryScore"] = max(20, min(95, CURRENT_HEALTH_METRICS["RecoveryScore"] + random.randint(-5, 8)))
-        CURRENT_HEALTH_METRICS["DeepSleep"] = max(30, min(120, CURRENT_HEALTH_METRICS["DeepSleep"] + random.randint(-10, 10)))
+        CURRENT_HEALTH_METRICS["HRV"] = max(30, CURRENT_HEALTH_METRICS["HRV"] + random.randint(-5, 7)) # Increased range for more variability
+        CURRENT_HEALTH_METRICS["RestingHR"] = max(50, CURRENT_HEALTH_METRICS["RestingHR"] + random.randint(-2, 2))
+        CURRENT_HEALTH_METRICS["GlucoseAvg"] = random.randint(90, 105) # Increased range
+        CURRENT_HEALTH_METRICS["RecoveryScore"] = max(20, min(95, CURRENT_HEALTH_METRICS["RecoveryScore"] + random.randint(-8, 10))) # Increased range
+        CURRENT_HEALTH_METRICS["DeepSleep"] = max(30, min(120, CURRENT_HEALTH_METRICS["DeepSleep"] + random.randint(-15, 20))) # Increased range
         
-        if CURRENT_HEALTH_METRICS["POTS_symptoms"] == "severe" and random.random() < 0.3:
+        # More dynamic POTS/BackPain status changes
+        if CURRENT_HEALTH_METRICS["POTS_symptoms"] == "severe" and random.random() < 0.4: # Higher chance to improve
             CURRENT_HEALTH_METRICS["POTS_symptoms"] = "moderate"
-        elif CURRENT_HEALTH_METRICS["POTS_symptoms"] == "moderate" and random.random() < 0.3:
+        elif CURRENT_HEALTH_METRICS["POTS_symptoms"] == "moderate" and random.random() < 0.4:
             CURRENT_HEALTH_METRICS["POTS_symptoms"] = "mild"
+        elif CURRENT_HEALTH_METRICS["POTS_symptoms"] == "mild" and random.random() < 0.1: # Small chance to worsen
+             CURRENT_HEALTH_METRICS["POTS_symptoms"] = random.choice(["moderate", "severe"])
         
-        if CURRENT_HEALTH_METRICS["BackPain"] == "severe" and random.random() < 0.3:
+        if CURRENT_HEALTH_METRICS["BackPain"] == "severe" and random.random() < 0.4: # Higher chance to improve
             CURRENT_HEALTH_METRICS["BackPain"] = "moderate"
-        elif CURRENT_HEALTH_METRICS["BackPain"] == "moderate" and random.random() < 0.3:
+        elif CURRENT_HEALTH_METRICS["BackPain"] == "moderate" and random.random() < 0.4:
             CURRENT_HEALTH_METRICS["BackPain"] = "mild"
+        elif CURRENT_HEALTH_METRICS["BackPain"] == "mild" and random.random() < 0.1: # Small chance to worsen
+            CURRENT_HEALTH_METRICS["BackPain"] = random.choice(["moderate", "severe"])
 
     return jsonify(journey_data) # Return as JSON response
 
@@ -802,669 +869,3 @@ def api_explain_decision():
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG') == '1', host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-```
-You're right, the message section still generating the same content is frustrating, especially with the updates I've made to increase randomness.
-
-The issue isn't that the backend *can't* generate different random sequences; it's that the **frontend might not be triggering a *new* generation every time, or the randomness in the backend's `generate_llm_response` for specific scenarios isn't diverse enough to be immediately noticeable.**
-
-To truly test if the backend is generating varied data, and to give you control, I'm going to add a **"Refresh Journey" button to the frontend**. When clicked, this button will explicitly make a new request to your backend's `/api/generate-journey` endpoint, forcing a fresh 8-month simulation.
-
----
-
-## Updated Frontend: `index.html` (with "Refresh Journey" Button) 🌐
-
-I've added a "Refresh Journey" button to the "Messages" and "Journey" sections. Clicking this button will trigger a new `fetchJourneyData` call, which in turn hits your backend's `/api/generate-journey` endpoint. This will allow you to see if the backend is indeed producing different data on subsequent requests.
-
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Elyx Health Journey</title>
-
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <style>
-        /* Global styles and custom spinner for loading indicators */
-        body {
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            border-left-color: #6366f1; /* Indigo 500 */
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-    </style>
-</head>
-<body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-
-    <!-- React and ReactDOM CDNs -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-    <!-- Firebase CDNs (for authentication). Ensure these are loaded before your app script. -->
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
-    <!-- Add other Firebase services if needed, e.g., Firestore: -->
-    <!-- <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script> -->
-
-    <script type="module">
-        // Access React from global scope
-        const { useState, useEffect, useCallback, useRef } = window.React;
-        const ReactDOM = window.ReactDOM;
-        const Chart = window.Chart; // Access Chart.js from global scope
-
-        // --- NavItem Component (defined locally within this script) ---
-        const NavItem = ({ label, section, activeSection, setActiveSection }) => {
-            const React = window.React; // Access React from global scope
-            return (
-                React.createElement('button', {
-                    className: `px-4 py-2 rounded-md text-white font-medium transition-colors duration-300 ${activeSection === section ? 'bg-indigo-600 shadow-lg' : 'hover:bg-indigo-700'}`,
-                    onClick: () => setActiveSection(section)
-                }, label)
-            );
-        };
-
-        // --- Sample Journey Data (Embedded) ---
-        // This data is now defined directly within this script, no import needed.
-        const sampleJourneyData = [
-            { type: "message", sender: "Rohan", timestamp: "2025-08-01 10:00", content: "Ruby, I'm feeling overwhelmed with my ad-hoc health routine. High work stress, and my Garmin HR seems off even on rest days. I need a proper, coordinated plan. My current supplement list is attached.", pillar: null, relatedTo: null },
-            { type: "message", sender: "Ruby", timestamp: "2025-08-01 10:05", content: "Hi Rohan, thank you for sharing this. We understand. Our goal is to bring coordination to your health. I'm flagging your concerns for Dr. Warren to review immediately. We're here to make this seamless for you.", pillar: null, relatedTo: "Rohan_Initial" },
-            { type: "event", eventId: "onboarding_start", timestamp: "2025-08-01 10:00", description: "Member Onboarding Initiated", details: "Rohan shares medical history and goals." },
-            { type: "message", sender: "Dr. Warren", timestamp: "2025-08-08 14:00", content: "Rohan, Dr. Warren here. I've reviewed your initial submission. The symptoms and data strongly suggest autonomic dysfunction (Pillar 1). To proceed, we must consolidate your complete medical records. This is non-negotiable for safety. Ruby will manage the process.", pillar: "Pillar 1", relatedTo: "Ruby_Welcome", decisionRationale: "To establish a clinical-grade strategy, ensure safety, and avoid redundant testing by consolidating complete medical history. This is a foundational step for maximizing long-term health output and preventing future costly errors." },
-            { type: "message", sender: "Rohan", timestamp: "2025-08-08 14:05", content: "Acknowledged. How long will that take? And what about my fitness goals?", pillar: null, relatedTo: "DrWarren_Records" },
-            { type: "message", sender: "Advik", timestamp: "2025-08-08 14:10", content: "Rohan, Advik here. A good first step is a comprehensive movement assessment to understand your baseline and identify any imbalances. Ruby can help schedule this with Rachel. This will inform your personalized exercise plan, maximizing your workout output.", pillar: "Pillar 4", relatedTo: "Rohan_Fitness", decisionRationale: "To establish a data-driven baseline for personalized exercise programming, optimizing for Rohan's time constraints and avoiding injury. This maximizes efficiency and adherence for long-term gains." },
-            { type: "event", eventId: "records_requested", timestamp: "2025-08-08 14:00", description: "Comprehensive Medical Records Requested", details: "Critical for clinical strategy.", relatedToDecision: true },
-            { type: "event", eventId: "movement_assessment_suggested", timestamp: "2025-08-08 14:10", description: "Initial Movement Assessment Suggested", details: "For personalized exercise plan.", relatedToDecision: true },
-            { type: "message", sender: "Rachel", timestamp: "2025-08-15 09:00", content: "Hi Rohan, Rachel here. Given your frequent travel and desk work, let's try a simple 2-minute 'couch stretch' for your lower back pain. It targets hip flexor tightness. Try it and let me know if it helps. This is a quick, effective intervention.", pillar: "Pillar 4", relatedTo: "Rohan_Fitness", decisionRationale: "To address Rohan's reported lower back pain, a common issue from prolonged sitting during travel, with a time-efficient, non-invasive intervention that integrates into his daily routine for maximum relief." },
-            { type: "message", sender: "Rohan", timestamp: "2025-08-15 09:10", content: "The couch stretch helped a bit! Also, for stress, any immediate dietary tips? I struggle with consistent energy.", pillar: null, relatedTo: "Rachel_Stretch" },
-            { type: "message", sender: "Carla", timestamp: "2025-08-15 09:15", content: "Rohan, Carla here. Great to hear about the stretch! For immediate stress support, focus on consistent hydration and mindful eating during your meals, even small ones. Avoiding processed snacks can also help. These are simple, low-cost dietary adjustments that integrate easily.", pillar: "Pillar 3, Pillar 5", relatedTo: "Rohan_DietQuery" },
-            { type: "event", eventId: "couch_stretch_introduced", timestamp: "2025-08-15 09:00", description: "Couch Stretch Introduced for Back Pain", details: "Targeting hip flexors.", relatedToDecision: true },
-            { type: "message", sender: "Ruby", timestamp: "2025-08-22 11:00", content: "Rohan, it's time to schedule your Q1 diagnostic panel. This comprehensive test will give us a baseline for your metabolic and hormonal health. We can arrange a phlebotomist to come to your office. Does next Tuesday morning work? This maximizes your convenience.", pillar: "Pillar 1", relatedTo: null, decisionRationale: "Full diagnostic test panel every three months is a core program requirement to track progress on biomarkers and identify new areas for intervention. This maximizes long-term health output by providing critical data for personalized adjustments, minimizing future health costs." },
-            { type: "message", sender: "Rohan", timestamp: "2025-08-22 11:05", content: "Yes, next Tuesday works. Confirmed. I'm keen to see the numbers, though I'm always a bit skeptical until I see tangible results.", pillar: null, relatedTo: "Ruby_DiagnosticSchedule" },
-            { type: "event", eventId: "q1_diagnostic_scheduled", timestamp: "2025-08-22 11:00", description: "Q1 Diagnostic Panel Scheduled", details: "Comprehensive baseline tests.", relatedToDecision: true }
-        ];
-
-        // --- Main App Component ---
-        function App() {
-            const [activeSection, setActiveSection] = useState('dashboard');
-            const [userId, setUserId] = useState('');
-            const [isAuthReady, setIsAuthReady] = useState(false);
-            const [decisionQuery, setDecisionQuery] = useState('');
-            const [decisionResponse, setDecisionResponse] = useState('');
-            const [isLoadingDecision, setIsLoadingDecision] = useState(false);
-            const [journeyData, setJourneyData] = useState([]);
-            const [isGeneratingConversation, setIsGeneratingConversation] = useState(true); // Initially true to show loading
-
-            // Refs for Chart.js canvas elements
-            const hrvChartRef = useRef(null);
-            const apoBChartRef = useRef(null);
-            const interactionChartRef = useRef(null);
-
-            // IMPORTANT: Updated to your specific Render Backend URL
-            const BACKEND_API_BASE_URL = "https://elyx-hackathon-3-2-bit.onrender.com"; 
-
-            // Function to fetch the 8-month journey data from the backend
-            const fetchJourneyData = useCallback(async () => {
-                setIsGeneratingConversation(true);
-                try {
-                    const response = await fetch(`${BACKEND_API_BASE_URL}/api/generate-journey`, {
-                        method: 'POST', // Use POST as the backend expects it
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({}) // Send empty body if no specific input is needed for generation
-                    });
-                    const data = await response.json();
-                    if (response.ok) {
-                        setJourneyData(data);
-                    } else {
-                        console.error("Error fetching journey data:", data.error || "Unknown error");
-                        setJourneyData([]); // Clear data on error
-                    }
-                } catch (error) {
-                    console.error("Network error fetching journey data:", error);
-                    setJourneyData([]); // Clear data on error
-                } finally {
-                    setIsGeneratingConversation(false);
-                }
-            }, [BACKEND_API_BASE_URL]); // Depend on BACKEND_API_BASE_URL
-
-            // Function to call the backend API for decision explanation
-            const handleDecisionQuery = async () => {
-                if (!decisionQuery.trim()) {
-                    setDecisionResponse("Please enter a question about a decision.");
-                    return;
-                }
-
-                setIsLoadingDecision(true);
-                setDecisionResponse("Thinking...");
-
-                try {
-                    const response = await fetch(`${BACKEND_API_BASE_URL}/api/explain-decision`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ query: decisionQuery, journeyData: journeyData }),
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        setDecisionResponse(data.explanation);
-                    } else {
-                        setDecisionResponse(`Error from backend: ${data.error || 'Unknown error'}`);
-                        console.error("Backend error response:", data);
-                    }
-
-                } catch (error) {
-                    console.error("Error calling backend API:", error);
-                    setDecisionResponse("An error occurred while connecting to the backend. Please ensure the backend is running and the URL is correct.");
-                } finally {
-                    setIsLoadingDecision(false);
-                }
-            };
-
-            // Initial load and Firebase setup
-            useEffect(() => {
-                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
-
-                if (firebaseConfig && window.firebase && window.firebase.auth) {
-                    const { initializeApp } = window.firebase;
-                    const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.firebase.auth;
-                    
-                    const app = initializeApp(firebaseConfig);
-                    const auth = getAuth(app);
-
-                    onAuthStateChanged(auth, (user) => {
-                        if (user) {
-                            setUserId(user.uid);
-                        } else {
-                            if (initialAuthToken) {
-                                signInWithCustomToken(auth, initialAuthToken)
-                                    .then(() => console.log('Signed in with custom token'))
-                                    .catch(error => console.error('Error signing in with custom token:', error));
-                            } else {
-                                signInAnonymously(auth)
-                                    .then(() => console.log('Signed in anonymously'))
-                                    .catch(error => console.error('Error signing in anonymously:', error));
-                            }
-                        }
-                        setIsAuthReady(true);
-                    });
-                } else {
-                    console.warn('Firebase global objects not found or config missing. Running without Firebase authentication.');
-                    setUserId('mock-user-id-' + Math.random().toString(36).substring(2, 9));
-                    setIsAuthReady(true);
-                }
-
-                // Fetch journey data when component mounts
-                fetchJourneyData();
-            }, [fetchJourneyData]); // Add fetchJourneyData to dependency array
-
-            // --- Chart Rendering Logic ---
-            useEffect(() => {
-                if (activeSection === 'journey' && journeyData.length > 0) {
-                    // Filter data for charts
-                    const quarterlyData = journeyData.filter(item => 
-                        item.type === 'event' && item.description && item.description.includes('Diagnostic Results Reviewed')
-                    ).map(item => ({
-                        date: item.timestamp.split(' ')[0],
-                        hrv: item.healthMetricsSnapshot ? item.healthMetricsSnapshot.HRV : null,
-                        apoB: item.healthMetricsSnapshot ? item.healthMetricsSnapshot.ApoB : null,
-                    }));
-
-                    const monthlyInteractionData = {};
-                    // Collect interactions from messages
-                    journeyData.filter(item => item.type === 'message' && item.specialistInvolved).forEach(item => {
-                        const month = item.timestamp.substring(0, 7); // YYYY-MM
-                        if (!monthlyInteractionData[month]) {
-                            monthlyInteractionData[month] = {};
-                        }
-                        const specialist = item.specialistInvolved;
-                        monthlyInteractionData[month][specialist] = (monthlyInteractionData[month][specialist] || 0) + 1;
-                    });
-                    // Collect interactions from events (e.g., onboarding, travel, illness)
-                    journeyData.filter(item => item.type === 'event' && item.serviceInteractionType).forEach(item => {
-                        const month = item.timestamp.substring(0, 7);
-                        if (!monthlyInteractionData[month]) {
-                            monthlyInteractionData[month] = {};
-                        }
-                        const specialist = item.specialistInvolved || 'Elyx Team'; // Default to 'Elyx Team' for events
-                        monthlyInteractionData[month][specialist] = (monthlyInteractionData[month][specialist] || 0) + 1;
-                    });
-
-
-                    const allSpecialists = new Set();
-                    Object.values(monthlyInteractionData).forEach(monthData => {
-                        Object.keys(monthData).forEach(spec => allSpecialists.add(spec));
-                    });
-                    const sortedSpecialists = Array.from(allSpecialists).sort();
-
-
-                    const interactionLabels = Object.keys(monthlyInteractionData).sort();
-                    const specialistColors = {
-                        "Dr. Warren": '#4c51bf', // Indigo
-                        "Advik": '#6366f1', // Indigo-500
-                        "Carla": '#8b5cf6', // Violet-500
-                        "Rachel": '#ec4899', // Pink-500
-                        "Neel": '#f97316', // Orange-500
-                        "Ruby": '#06b6d4', // Cyan-500
-                        "Elyx Team": '#10b981', // Emerald-500 (for general events)
-                        "Rohan": '#a3a3a3' // Gray for Rohan's initiated queries
-                    };
-                    const interactionDatasets = sortedSpecialists.map(specialist => {
-                        const data = interactionLabels.map(month => monthlyInteractionData[month][specialist] || 0);
-                        return {
-                            label: specialist,
-                            data: data,
-                            backgroundColor: specialistColors[specialist] || '#94a3b8', // Fallback color
-                            borderColor: specialistColors[specialist] || '#94a3b8',
-                            fill: false,
-                            tension: 0.1
-                        };
-                    });
-
-
-                    // Destroy existing charts if they exist
-                    if (hrvChartRef.current && hrvChartRef.current.chart) {
-                        hrvChartRef.current.chart.destroy();
-                    }
-                    if (apoBChartRef.current && apoBChartRef.current.chart) {
-                        apoBChartRef.current.chart.destroy();
-                    }
-                    if (interactionChartRef.current && interactionChartRef.current.chart) {
-                        interactionChartRef.current.chart.destroy();
-                    }
-
-                    // HRV Chart
-                    if (hrvChartRef.current) {
-                        hrvChartRef.current.chart = new Chart(hrvChartRef.current, {
-                            type: 'line',
-                            data: {
-                                labels: quarterlyData.map(d => d.date),
-                                datasets: [{
-                                    label: 'HRV (ms)',
-                                    data: quarterlyData.map(d => d.hrv),
-                                    borderColor: '#4c51bf', // Indigo
-                                    backgroundColor: 'rgba(76, 81, 191, 0.2)',
-                                    tension: 0.1,
-                                    fill: true
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    title: { display: true, text: 'HRV Trend Over Quarters' }
-                                },
-                                scales: { y: { beginAtZero: false } }
-                            }
-                        });
-                    }
-
-                    // ApoB Chart
-                    if (apoBChartRef.current) {
-                        apoBChartRef.current.chart = new Chart(apoBChartRef.current, {
-                            type: 'line',
-                            data: {
-                                labels: quarterlyData.map(d => d.date),
-                                datasets: [{
-                                    label: 'ApoB (mg/dL)',
-                                    data: quarterlyData.map(d => d.apoB),
-                                    borderColor: '#f97316', // Orange
-                                    backgroundColor: 'rgba(249, 115, 22, 0.2)',
-                                    tension: 0.1,
-                                    fill: true
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    title: { display: true, text: 'ApoB Trend Over Quarters' }
-                                },
-                                scales: { y: { beginAtZero: false } }
-                            }
-                        });
-                    }
-
-                    // Interaction Time Chart
-                    if (interactionChartRef.current) {
-                        interactionChartRef.current.chart = new Chart(interactionChartRef.current, {
-                            type: 'bar',
-                            data: {
-                                labels: interactionLabels,
-                                datasets: interactionDatasets
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    title: { display: true, text: 'Monthly Service Interactions by Specialist' },
-                                    tooltip: { mode: 'index', intersect: false }
-                                },
-                                scales: {
-                                    x: { stacked: true },
-                                    y: { stacked: true, beginAtZero: true }
-                                }
-                            }
-                        });
-                    }
-                }
-            }, [activeSection, journeyData]); // Re-run when activeSection or journeyData changes
-
-            const renderContent = () => {
-                switch (activeSection) {
-                    case 'dashboard':
-                        const recentMessages = journeyData.filter(item => item.type === 'message').slice(-3).reverse();
-                        // Ensure latestMetrics is always an object, even if journeyData is empty
-                        const latestMetrics = journeyData.length > 0 && journeyData[journeyData.length - 1].healthMetricsSnapshot 
-                                             ? journeyData[journeyData.length - 1].healthMetricsSnapshot 
-                                             : { HRV: "N/A", RestingHR: "N/A", GlucoseAvg: "N/A" };
-                        return (
-                            React.createElement('div', { className: "p-6 text-gray-700" },
-                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Welcome, Rohan!"),
-                                React.createElement('p', { className: "text-lg mb-4" }, "This is your personalized health dashboard. Here, you'll find an overview of your progress, key metrics, and upcoming activities."),
-                                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" },
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Current Health Snapshot"),
-                                        React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600" },
-                                            React.createElement('li', null, "HRV: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.HRV, "ms")),
-                                            React.createElement('li', null, "Resting HR: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.RestingHR, "bpm")),
-                                            React.createElement('li', null, "Glucose Avg: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.GlucoseAvg, "mg/dL"))
-                                        ),
-                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, "Last updated: ", journeyData.length > 0 ? journeyData[journeyData.length - 1].timestamp.split(' ')[0] : 'N/A')
-                                    ),
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Upcoming Activities"),
-                                        React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600" },
-                                            React.createElement('li', null, "Aug 22: Water Quality Test (Ruby)"),
-                                            React.createElement('li', null, "Sept 5: VO2 Max Test (Advik)"),
-                                            React.createElement('li', null, "Sept 28: Prenuvo MRI (Ruby)")
-                                        ),
-                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, "Stay on track with your personalized plan!")
-                                    ),
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Recent Communications"),
-                                        recentMessages.length > 0 ? (
-                                            recentMessages.map((msg, index) => (
-                                                React.createElement('p', { key: index, className: "text-gray-600 italic text-sm mb-1" },
-                                                    `"${msg.content.length > 70 ? msg.content.substring(0, 70) + '...' : msg.content}" - ${msg.sender} (${msg.timestamp.split(' ')[0]})`
-                                                )
-                                            ))
-                                        ) : (
-                                            React.createElement('p', { className: "text-gray-500" }, "No recent messages yet.")
-                                        ),
-                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, "See full chat history for details.")
-                                    )
-                                )
-                            )
-                        );
-                    case 'journey':
-                        return (
-                            React.createElement('div', { className: "p-6 text-gray-700" },
-                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Your Health Journey Timeline"),
-                                React.createElement('p', { className: "text-lg mb-6" }, "Visualize your progress, key decisions, and interventions over time."),
-                                isGeneratingConversation ? (
-                                    React.createElement('div', { className: "text-center py-10 text-xl text-indigo-600" },
-                                        React.createElement('p', null, "Generating 8-month journey data from backend..."),
-                                        React.createElement('div', { className: "spinner mt-4" })
-                                    )
-                                ) : (
-                                    React.createElement('div', { className: "bg-white p-8 rounded-lg shadow-md overflow-y-auto max-h-[600px] border border-gray-200" },
-                                        React.createElement('button', { // Refresh Journey Button
-                                            className: "mb-4 px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors duration-300",
-                                            onClick: fetchJourneyData,
-                                            disabled: isGeneratingConversation
-                                        }, "Refresh Journey"),
-                                        journeyData.length > 0 ? (
-                                            React.createElement('div', { className: "relative pl-6" },
-                                                React.createElement('div', { className: "absolute left-0 top-0 bottom-0 w-1 bg-indigo-200 rounded-full" }),
-                                                journeyData.map((item, index) => (
-                                                    React.createElement('div', { key: index, className: "mb-8 relative" },
-                                                        React.createElement('div', { className: "absolute -left-2 top-1 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xs z-10" }, item.type === 'message' ? '💬' : '✨'),
-                                                        React.createElement('div', { className: "ml-6 pb-4 border-b border-gray-100 last:border-b-0" },
-                                                            React.createElement('p', { className: "text-sm text-gray-500 mb-1" }, item.timestamp),
-                                                            React.createElement('h3', { className: "font-semibold text-lg text-gray-800" }, item.type === 'message' ? `${item.sender}:` : item.description),
-                                                            React.createElement('p', { className: "text-gray-700" }, item.content || item.details),
-                                                            item.decisionRationale && (
-                                                                React.createElement('div', { className: "mt-2 p-3 bg-blue-50 rounded-md border border-blue-200 text-blue-700 text-sm" },
-                                                                    React.createElement('p', { className: "font-medium" }, "Rationale:"),
-                                                                    React.createElement('p', null, item.decisionRationale)
-                                                                )
-                                                            ),
-                                                            item.interventionEffect && (
-                                                                React.createElement('div', { className: "mt-1 text-xs text-gray-600" }, "Effect: ", item.interventionEffect)
-                                                            ),
-                                                            item.monetaryFactor && (
-                                                                React.createElement('div', { className: "mt-1 text-xs text-gray-600" }, "Monetary: ", item.monetaryFactor)
-                                                            ),
-                                                            item.timeEfficiency && (
-                                                                React.createElement('div', { className: "mt-1 text-xs text-gray-600" }, "Time: ", item.timeEfficiency)
-                                                            ),
-                                                            item.pillar && (
-                                                                React.createElement('div', { className: "mt-1 text-xs text-gray-600" }, "Pillar: ", item.pillar)
-                                                            )
-                                                        )
-                                                    )
-                                                ))
-                                            )
-                                        ) : (
-                                            React.createElement('div', { className: "text-center text-gray-400 text-xl py-20" }, "No journey data available yet.")
-                                        )
-                                    ),
-                                    // Quarterly Quality Increase Graphs
-                                    React.createElement('div', { className: "mt-12 grid grid-cols-1 lg:grid-cols-2 gap-8" },
-                                        React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
-                                            React.createElement('canvas', { ref: hrvChartRef, id: "hrvChart" })
-                                        ),
-                                        React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
-                                            React.createElement('canvas', { ref: apoBChartRef, id: "apoBChart" })
-                                        )
-                                    ),
-                                    // Interaction Time Graph
-                                    React.createElement('div', { className: "mt-8 bg-white p-6 rounded-lg shadow-md" },
-                                        React.createElement('canvas', { ref: interactionChartRef, id: "interactionChart" })
-                                    )
-                                )
-                            )
-                        );
-                    case 'messages':
-                        return (
-                            React.createElement('div', { className: "p-6 text-gray-700" },
-                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Your Conversations"),
-                                React.createElement('p', { className: "text-lg mb-6" }, "Here, you'll find all your WhatsApp-style communications with the Elyx team."),
-                                isGeneratingConversation ? (
-                                    React.createElement('div', { className: "text-center py-10 text-xl text-indigo-600" },
-                                        React.createElement('p', null, "Generating messages..."),
-                                        React.createElement('div', { className: "spinner mt-4" })
-                                    )
-                                ) : (
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md overflow-y-auto max-h-[600px] flex flex-col-reverse" },
-                                        React.createElement('button', { // Refresh Journey Button
-                                            className: "mb-4 px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors duration-300",
-                                            onClick: fetchJourneyData,
-                                            disabled: isGeneratingConversation
-                                        }, "Refresh Journey"),
-                                        journeyData.filter(item => item.type === 'message').reverse().map((msg, index) => (
-                                            React.createElement('div', { key: index, className: `mb-4 p-3 rounded-lg max-w-[80%] ${msg.sender === 'Rohan' ? 'bg-blue-100 self-end text-right' : 'bg-gray-100 self-start text-left'}` },
-                                                React.createElement('p', { className: "font-semibold text-sm mb-1" }, msg.sender),
-                                                React.createElement('p', { className: "text-gray-800" }, msg.content),
-                                                React.createElement('p', { className: "text-xs text-gray-500 mt-1" }, msg.timestamp),
-                                                msg.serviceInteractionType && (
-                                                    React.createElement('div', { className: "mt-1 text-xs text-gray-500" }, "Type: ", msg.serviceInteractionType)
-                                                ),
-                                                msg.specialistInvolved && (
-                                                    React.createElement('div', { className: "mt-1 text-xs text-gray-500" }, "Specialist: ", msg.specialistInvolved)
-                                                )
-                                            )
-                                        ))
-                                    )
-                                )
-                            )
-                        );
-                    case 'specialists':
-                        return (
-                            React.createElement('div', { className: "p-6 text-gray-700" },
-                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Elyx Health Specialists"),
-                                React.createElement('p', { className: "text-lg mb-6" }, "Meet the team of experts guiding your health journey and review their direct communications."),
-                                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" },
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Dr. Warren ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Medical Strategist)")),
-                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Physician and final clinical authority, interprets lab results, approves diagnostic strategies.", React.createElement('br'), "**Voice:** Authoritative, precise, scientific."),
-                                        React.createElement('p', { className: "text-sm text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Dr. Warren's Chats"))
-                                    ),
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Advik ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Performance Scientist)")),
-                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Data analysis expert (wearables data), focuses on nervous system, sleep, cardiovascular training.", React.createElement('br'), "**Voice:** Analytical, curious, pattern-oriented."),
-                                        React.createElement('p', { className: "text-sm text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Advik's Chats"))
-                                    ),
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Carla ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Nutritionist)")),
-                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Designs nutrition plans, analyzes food logs and CGM data, supplement recommendations.", React.createElement('br'), "**Voice:** Practical, educational, focused on behavioral change."),
-                                        React.createElement('p', { className: "text-sm text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Carla's Chats"))
-                                    ),
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Rachel ", React.createElement('span', { className: "text-sm text-gray-500" }, "(PT / Physiotherapist)")),
-                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Manages physical movement: strength training, mobility, injury rehabilitation.", React.createElement('br'), "**Voice:** Direct, encouraging, focused on form and function."),
-                                        React.createElement('p', { className: "text-sm text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Rachel's Chats"))
-                                    ),
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Dr. Evans ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Stress Management)")),
-                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Provides tools and strategies for stress resilience and cognitive load management.", React.createElement('br'), "**Voice:** Practical, insightful, calm (assumed based on context)."),
-                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Dr. Evans' Chats"))
-                                    ),
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Ruby ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Concierge)")),
-                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Primary point of contact for logistics, scheduling, reminders, and follow-ups.", React.createElement('br'), "**Voice:** Empathetic, organized, proactive."),
-                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Ruby's Chats"))
-                                    ),
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Neel ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Concierge Lead)")),
-                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Senior leader, major strategic reviews, de-escalates frustrations, connects work to goals.", React.createElement('br'), "**Voice:** Strategic, reassuring, focused on the big picture."),
-                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Neel's Chats"))
-                                    )
-                                )
-                            )
-                        );
-                    case 'decision-query':
-                        return (
-                            React.createElement('div', { className: "p-6 text-gray-700" },
-                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Ask About a Decision"),
-                                React.createElement('p', { className: "text-lg mb-6" }, "Have a question about a specific recommendation, medication, or plan change? Type it below and our AI will provide the rationale."),
-                                React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
-                                    React.createElement('textarea', {
-                                        className: "w-full p-4 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-200",
-                                        rows: "5",
-                                        placeholder: "E.g., Why was the blue-light blocking glasses suggested?",
-                                        value: decisionQuery,
-                                        onChange: (e) => setDecisionQuery(e.target.value),
-                                        disabled: isLoadingDecision
-                                    }),
-                                    React.createElement('button', {
-                                        className: `w-full bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold text-lg shadow-md transition-all duration-300 ${isLoadingDecision ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-700 hover:shadow-lg'}`,
-                                        onClick: handleDecisionQuery,
-                                        disabled: isLoadingDecision
-                                    }, isLoadingDecision ? 'Asking AI...' : 'Ask Elyx AI'),
-                                    decisionResponse && (
-                                        React.createElement('div', { className: "mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200 text-indigo-800 break-words" },
-                                            React.createElement('p', { className: "font-semibold" }, "Elyx AI's Explanation:"),
-                                            React.createElement('p', null, decisionResponse)
-                                        )
-                                    )
-                                )
-                            )
-                        );
-                    case 'profile':
-                        return (
-                            React.createElement('div', { className: "p-6 text-gray-700" },
-                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Rohan's Profile"),
-                                React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
-                                    React.createElement('p', { className: "text-lg font-medium text-indigo-700 mb-2" }, "Personal Details:"),
-                                    React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600 mb-4" },
-                                        React.createElement('li', null, "**Preferred Name:** Rohan Patel"),
-                                        React.createElement('li', null, "**Age:** 46"),
-                                        React.createElement('li', null, "**Gender:** Male"),
-                                        React.createElement('li', null, "**Primary Residence:** Singapore"),
-                                        React.createElement('li', null, "**Occupation:** Regional Head of Sales (FinTech)")
-                                    ),
-                                    React.createElement('p', { className: "text-lg font-medium text-indigo-700 mb-2" }, "Core Goals:"),
-                                    React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600 mb-4" },
-                                        React.createElement('li', null, "Reduce risk of heart disease (by Dec 2026)"),
-                                        React.createElement('li', null, "Enhance cognitive function and focus (by June 2026)"),
-                                        React.createElement('li', null, "Implement annual full-body health screenings (starting Nov 2025)")
-                                    ),
-                                    React.createElement('p', { className: "text-lg font-medium text-indigo-700 mb-2" }, "Behavioral Insights:"),
-                                    React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600 mb-4" },
-                                        React.createElement('li', null, "Analytical, driven, values efficiency and evidence-based approaches."),
-                                        React.createElement('li', null, "Highly motivated but time-constrained. Needs clear, concise plans."),
-                                        React.createElement('li', null, "Wife supportive, 2 young kids, employs a cook.")
-                                    ),
-                                    React.createElement('p', { className: "text-lg font-medium text-indigo-700 mb-2" }, "Tech Stack:"),
-                                    React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600" },
-                                        React.createElement('li', null, "Garmin watch (used for runs), considering Oura ring/Whoop."),
-                                        React.createElement('li', null, "Willing to enable full data sharing.")
-                                    )
-                                ),
-                                isAuthReady && userId && (
-                                    React.createElement('div', { className: "mt-6 p-4 bg-blue-50 rounded-lg text-blue-800 break-words" },
-                                        React.createElement('p', { className: "font-semibold" }, "Your User ID:"),
-                                        React.createElement('p', { className: "text-sm" }, userId)
-                                    )
-                                )
-                            )
-                        );
-                    default:
-                        return null;
-                }
-            };
-
-            return (
-                React.createElement('div', { className: "min-h-screen bg-gray-100 font-sans text-gray-900 flex flex-col" },
-                    React.createElement('nav', { className: "bg-indigo-800 p-4 shadow-md" },
-                        React.createElement('div', { className: "container mx-auto flex justify-between items-center flex-wrap" },
-                            React.createElement('div', { className: "text-white text-2xl font-bold rounded-md px-3 py-1 bg-indigo-600" }, "Elyx Life"),
-                            React.createElement('div', { className: "flex space-x-4 mt-2 md:mt-0" },
-                                React.createElement(NavItem, { label: "Dashboard", section: "dashboard", activeSection: activeSection, setActiveSection: setActiveSection }),
-                                React.createElement(NavItem, { label: "Journey", section: "journey", activeSection: activeSection, setActiveSection: setActiveSection }),
-                                React.createElement(NavItem, { label: "Messages", section: "messages", activeSection: activeSection, setActiveSection: setActiveSection }),
-                                React.createElement(NavItem, { label: "Specialists", section: "specialists", activeSection: activeSection, setActiveSection: setActiveSection }),
-                                React.createElement(NavItem, { label: "Decision Query", section: "decision-query", activeSection: activeSection, setActiveSection: setActiveSection }),
-                                React.createElement(NavItem, { label: "Profile", section: "profile", activeSection: activeSection, setActiveSection: setActiveSection })
-                            )
-                        )
-                    ),
-                    React.createElement('main', { className: "flex-grow container mx-auto px-4 py-8" }, renderContent()),
-                    React.createElement('footer', { className: "bg-indigo-800 p-4 text-white text-center text-sm mt-8" },
-                        React.createElement('div', { className: "container mx-auto" }, "© ", new Date().getFullYear(), " Elyx Life. All rights reserved.")
-                    )
-                )
-            );
-        }
-
-        // Render the App component into the root div
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(App, null));
-    </script>
-</body>
-</html>
