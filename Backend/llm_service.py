@@ -110,9 +110,9 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
                 "I've scheduled the diagnostic panel for Tuesday. What are the key metrics we're tracking, and how will they inform my plan?"
             ],
             "apo_b": [
-                "What's the plan for the ApoB? I want clear, actionable steps. Monetary factors are important too.",
-                "Elevated ApoB is a concern. What are the most effective, efficient interventions? Please consider cost-effectiveness.",
-                "Understood on ApoB. Let's prioritize interventions. Are there any cost-efficient alternatives for dietary changes or supplements?",
+                "What's the plan for the ApoB? I want clear, actionable steps. Is this a significant investment?",
+                "Elevated ApoB is a concern. What are the most effective, efficient interventions? What's the cost implication?",
+                "Understood on ApoB. Let's prioritize interventions. Are there any budget-friendly alternatives for dietary changes or supplements?",
                 "Given the ApoB results, what's the immediate, high-impact strategy? I need to know the financial implications and time commitment."
             ],
             "travel": [
@@ -145,14 +145,14 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
                 "My digestion feels off. Are there any simple, effective strategies I can implement immediately?",
                 "Can you provide quick, actionable tips for better digestion that won't disrupt my routine?"
             ],
-            "monetary_concern": [
-                "I'm looking for cost-effective options. Can you suggest alternatives for X?",
-                "How can we optimize for value without compromising results? Are there budget-friendly alternatives?",
-                "What's the ROI on this recommendation, and are there less expensive but still effective options?",
+            "monetary_concern": [ # Rohan explicitly asks about cost
+                "I'm concerned about the cost of some recommendations. Can you suggest more budget-friendly alternatives?",
+                "How can we optimize for value without compromising results? Are there more economical options?",
+                "What's the return on investment for this, and are there less expensive but still effective options?",
                 "I need to balance health investments with financial prudence. What are some high-impact, low-cost recommendations?"
             ],
-            "time_constraint": [
-                "I have limited time. What's the most time-efficient way to achieve Y?",
+            "time_constraint": [ # Rohan explicitly asks about time
+                "I have very limited time. What's the most time-efficient way to achieve Y?",
                 "My schedule is packed. Can we focus on high-impact, low-time-commitment interventions?",
                 "What are some quick wins for health that fit into a demanding schedule?",
                 "I need strategies that deliver maximum health output for minimal time investment. Any suggestions?"
@@ -198,12 +198,15 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
         
         # Select a response from the pool, ensuring it's not a recent duplicate
         available_queries = [q for q in rohan_query_pool[chosen_key] if q not in ROHAN_ASKED_TOPICS]
-        if not available_queries: # If all queries for this topic have been used recently, reset or pick general
-            ROHAN_ASKED_TOPICS.clear() # Clear memory if exhausted
-            available_queries = rohan_query_pool["general_query"]
+        if not available_queries: # If all queries for this topic have been used recently, clear memory and try again
+            ROHAN_ASKED_TOPICS.clear() 
+            available_queries = rohan_query_pool[chosen_key] # Reset to all queries for this topic
+            if not available_queries: # Fallback if specific pool is empty
+                available_queries = rohan_query_pool["general_query"]
         
         response_text = random.choice(available_queries)
-        ROHAN_ASKED_TOPICS.add(response_text) # Add the chosen query to memory
+        # Add the chosen query's *topic* to memory, not the exact text, for better control
+        ROHAN_ASKED_TOPICS.add(chosen_key) 
 
     # --- Elyx Team Member Responses (Prioritizing, Value-Driven, Adaptable) ---
     else:
@@ -345,7 +348,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
         else:
             response_text = random.choice([
                 f"Hi Rohan, {role} here. We're continuously optimizing your plan based on your feedback and data to maximize your health output. How are things going with your current priorities?",
-                f"Understood. We'll integrate this into your personalized plan to maximize your health output, considering your time and monetary factors. Thanks for the feedback.",
+                f"Understood. We'll integrate this into your personalized plan to maximize your health output, considering your time and value. Thanks for the feedback.", # Adjusted phrasing
                 f"That's a great point, {ELYX_TEAM_PERSONAS[role]['role']} will look into that for you, ensuring it aligns with your priorities and lifestyle.",
                 f"We're always looking for ways to make your health journey more seamless and impactful, turning medical procedures into lifestyle habits. What's on your mind?",
                 f"Just checking in, Rohan. How are you feeling about your current progress and any new challenges you're facing? {role} is here to support.",
@@ -353,8 +356,8 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             ])
             decision_rationale = "Routine check-in / general response, emphasizing personalized care, value, and lifestyle integration."
             pillar_impact = "General"
-            monetary_factor = "General emphasis on value."
-            time_efficiency = "General emphasis on efficiency."
+            monetary_factor = "General emphasis on value." # Still set for data, but less explicit in text
+            time_efficiency = "General emphasis on efficiency." # Still set for data, but less explicit in text
 
     return response_text, decision_rationale, pillar_impact, health_metrics_snapshot, intervention_effect, monetary_factor, time_efficiency, service_interaction_type, specialist_involved
 
@@ -683,8 +686,8 @@ def api_generate_journey():
                     "cognitive function": ["How can I enhance my cognitive function and focus?", "Are there any brain-boosting foods or supplements you recommend?", "What exercises can improve mental clarity?", "What's the best way to maintain peak cognitive performance under pressure?"],
                     "new product": ["Have you come across any new health products that might benefit me?", "Can you recommend a new wearable or health tech that aligns with my goals?", "Are there any cost-effective health products worth exploring?", "What are some innovative products for sleep or recovery?"],
                     "alternative exercise": ["I need alternative exercises for when I'm traveling or short on time. Any suggestions?", "What are some effective bodyweight exercises I can do anywhere?", "Can you suggest alternatives to gym workouts that are time-efficient?", "Are there any low-impact exercise alternatives for recovery days?"],
-                    "monetary concern": ["I'm looking for cost-effective options. Can you suggest alternatives for X?", "How can we optimize for value without compromising results? Are there budget-friendly alternatives?", "What's the ROI on this recommendation, and are there less expensive but still effective options?", "I need to balance health investments with financial prudence. What are some high-impact, low-cost recommendations?"],
-                    "time constraint": ["I have limited time. What's the most time-efficient way to achieve Y?", "My schedule is packed. Can we focus on high-impact, low-time-commitment interventions?", "What are some quick wins for health that fit into a demanding schedule?", "I need strategies that deliver maximum health output for minimal time investment. Any suggestions?"],
+                    "monetary_concern": ["I'm concerned about the cost of some recommendations. Can you suggest more budget-friendly alternatives?", "How can we optimize for value without compromising results? Are there more economical options?", "What's the return on investment for this, and are there less expensive but still effective options?", "I need to balance health investments with financial prudence. What are some high-impact, low-cost recommendations?"],
+                    "time_constraint": ["I have very limited time. What's the most time-efficient way to achieve Y?", "My schedule is packed. Can we focus on high-impact, low-time-commitment interventions?", "What are some quick wins for health that fit into a demanding schedule?", "I need strategies that deliver maximum health output for minimal time investment. Any suggestions?"],
                     "general_query": ["Just checking in. Any new recommendations based on my overall progress?", "What's the overarching strategy for the next phase of my health journey?", "I'm curious about optimizing my current routine. Any thoughts on that?", "What's the latest insight from my data? Any new areas of focus?"]
                 }
                 
@@ -698,7 +701,8 @@ def api_generate_journey():
                 ROHAN_ASKED_TOPICS.add(chosen_topic) # Add chosen topic to memory
 
                 # Select a specific question for that topic, avoiding recent exact duplicates
-                available_questions_for_topic = [q for q in query_pool[chosen_topic] if q not in chat_history[-5:]] # Check last 5 messages
+                # Check last 5 messages in chat_history to avoid immediate repetition of exact text
+                available_questions_for_topic = [q for q in query_pool[chosen_topic] if q not in [msg['content'] for msg in chat_history[-5:] if msg['role'] == 'user']]
                 if not available_questions_for_topic:
                     available_questions_for_topic = query_pool[chosen_topic] # Reset if all questions for topic are recent
                 
