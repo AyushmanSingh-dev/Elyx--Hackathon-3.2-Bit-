@@ -67,11 +67,12 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
     decision_rationale = None
     pillar_impact = None
     health_metrics_snapshot = current_metrics.copy() # Snapshot current metrics
-    intervention_effect = None
+    intervention_effect = None # New field for effectiveness
     monetary_factor = None
     time_efficiency = None
     service_interaction_type = "general"
     specialist_involved = role if role != "Rohan" else None
+    next_steps = None # New field for following steps
 
     # --- Rohan's Responses (Patient Concerns & Priorities) ---
     if role == "Rohan":
@@ -158,10 +159,10 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
                 "I need strategies that deliver maximum health output for minimal time investment. Any suggestions?"
             ],
             "general_query": [
-                "I'm curious about optimizing my current routine. Any thoughts on that?",
-                "What's the latest insight from my data? Any new areas of focus?",
                 "Just checking in. Any new recommendations based on my overall progress?",
-                "What's the overarching strategy for the next phase of my health journey?"
+                "What's the overarching strategy for the next phase of my health journey?",
+                "I'm curious about optimizing my current routine. Any thoughts on that?",
+                "What's the latest insight from my data? Any new areas of focus?"
             ]
         }
 
@@ -220,6 +221,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             ])
             decision_rationale = "Prioritizing Rohan's core concern of 'ad-hoc health' by initiating a coordinated clinical review, maximizing early engagement output."
             time_efficiency = "Immediate flagging for quick initial response."
+            next_steps = "Ruby will contact Sarah to begin medical record consolidation."
         elif "medical records" in prompt_lower and role == "Dr. Warren":
             response_text = random.choice([
                 "Rohan, Dr. Warren here. I've reviewed your initial submission. The symptoms and data strongly suggest autonomic dysfunction (Pillar 1). To proceed, we must consolidate your complete medical records. This is non-negotiable for safety. Ruby will manage the process.",
@@ -229,6 +231,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             ])
             decision_rationale = "To establish a clinical-grade strategy, ensure safety, and avoid redundant testing by consolidating complete medical history. This is a foundational step for maximizing long-term health output and preventing future costly errors."
             pillar_impact = "Pillar 1 (Autonomic Health)"
+            next_steps = "Complete medical record consolidation via Ruby."
         elif "medical records" in prompt_lower and role == "Ruby":
             response_text = random.choice([
                 "The timeline can vary depending on clinics' response speed, but we will manage the entire process. We typically aim for records within 2-3 weeks. We'll provide daily updates to keep you in the loop, saving your time.",
@@ -237,6 +240,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
                 "Sarah has been briefed on the medical record collection. We anticipate completion within 2-3 weeks, and you'll receive real-time updates, ensuring minimal disruption to your schedule."
             ])
             time_efficiency = "Elyx team handles logistics to save Rohan's time."
+            next_steps = "Ruby will send daily updates on record collection progress."
         elif "fitness goals" in prompt_lower and role == "Advik":
             response_text = random.choice([
                 "Rohan, Advik here. A good first step is a comprehensive movement assessment to understand your baseline and identify any imbalances. Ruby can help schedule this with Rachel. This will inform your personalized exercise plan, maximizing your workout output.",
@@ -246,6 +250,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             ])
             decision_rationale = "To establish a data-driven baseline for personalized exercise programming, optimizing for Rohan's time constraints and avoiding injury. This maximizes efficiency and adherence for long-term gains."
             pillar_impact = "Pillar 4 (Structural Health)"
+            next_steps = "Schedule movement assessment with Rachel via Ruby."
         elif "stress levels" in prompt_lower and role == "Carla":
             response_text = random.choice([
                 "Rohan, Carla here. For immediate stress support, focus on consistent hydration and mindful eating. Avoiding processed snacks can also help. These are simple, low-cost dietary adjustments that integrate easily.",
@@ -256,6 +261,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             pillar_impact = "Pillar 3 (Fuel), Pillar 5 (Stress Resilience)"
             monetary_factor = "Low-cost/no-cost dietary adjustments."
             time_efficiency = "Easy to integrate, minimal time commitment."
+            next_steps = "Focus on consistent hydration and mindful eating practices daily."
         elif "couch stretch" in prompt_lower and role == "Rachel":
             response_text = random.choice([
                 "Hi Rohan, Rachel here. Given your frequent travel and desk work, let's try a simple 2-minute 'couch stretch' for your lower back pain. It targets hip flexor tightness. Try it and let me know if it helps. This is a quick, effective intervention.",
@@ -266,6 +272,8 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             decision_rationale = "To address Rohan's reported lower back pain, a common issue from prolonged sitting during travel, with a time-efficient, non-invasive intervention that integrates into his daily routine for maximum relief."
             pillar_impact = "Pillar 4 (Structural Health)"
             time_efficiency = "2-minute, quick intervention."
+            next_steps = "Perform couch stretch daily and report back on effectiveness."
+            intervention_effect = "Initial relief, focus on long-term mobility." # Default for this intervention
         elif "q1 diagnostic panel" in prompt_lower and role == "Ruby":
             response_text = random.choice([
                 "Rohan, it's time to schedule your Q1 diagnostic panel. This comprehensive test will give us a baseline for your metabolic and hormonal health. We can arrange a phlebotomist to come to your office. Does next Tuesday morning work? This maximizes your convenience.",
@@ -276,16 +284,28 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             decision_rationale = "Full diagnostic test panel every three months is a core program requirement to track progress on biomarkers and identify new areas for intervention. This maximizes long-term health output by providing critical data for personalized adjustments, minimizing future health costs."
             pillar_impact = "Pillar 1 (Autonomic), Pillar 3 (Fuel), Pillar 5 (Stress Resilience)"
             time_efficiency = "Phlebotomist to office for convenience."
+            next_steps = "Confirm availability for phlebotomist visit next Tuesday."
         elif "apo b" in prompt_lower and role == "Dr. Warren":
+            # Simulate different effectiveness based on current ApoB
+            if current_metrics["ApoB"] < 90:
+                effect_text = "ApoB has shown significant improvement, indicating positive progress on cardiovascular health."
+                effectiveness = "effective"
+                next_steps = "Continue current dietary and exercise interventions; re-evaluate in Q3."
+            else:
+                effect_text = "ApoB remains elevated, requiring continued focus and potential adjustments to interventions."
+                effectiveness = "partially effective"
+                next_steps = "Carla will refine dietary plan, Rachel will review exercise intensity. Re-test in Q2."
+
             response_text = random.choice([
-                "Rohan, your ApoB is 105 mg/dL. This is elevated and a primary focus for long-term heart disease risk reduction, aligning with your top health goal. Carla will lead dietary interventions (reducing saturated fat, increasing fiber), and Rachel's exercise plan will be critical. We will aggressively target this with lifestyle changes and re-test in Q2.",
-                "Dr. Warren. Your ApoB at 105 mg/dL is a priority. We're launching a targeted intervention led by Carla (diet) and Rachel (exercise) to reduce your cardiovascular risk. This is a crucial investment in your longevity, with re-testing planned.",
-                "Your Q1 diagnostics show elevated ApoB. This is a serious indicator for heart health, directly impacting your primary goal. Our strategy involves aggressive, integrated lifestyle changes via Carla and Rachel, aiming for significant reduction by Q2. This is a high-ROI health investment.",
-                "Dr. Warren: Elevated ApoB is our immediate focus for your cardiovascular health. Carla and Rachel will implement aggressive, integrated lifestyle interventions. This is a critical, cost-effective step towards your longevity goals, with re-evaluation in Q2."
+                f"Rohan, your ApoB is {current_metrics['ApoB']} mg/dL. {effect_text} This is a primary focus for long-term heart disease risk reduction, aligning with your top health goal. Carla will lead dietary interventions (reducing saturated fat, increasing fiber), and Rachel's exercise plan will be critical. We will aggressively target this with lifestyle changes and re-test in Q2.",
+                f"Dr. Warren. Your ApoB at {current_metrics['ApoB']} mg/dL. {effect_text} This is a priority. We're launching a targeted intervention led by Carla (diet) and Rachel (exercise) to reduce your cardiovascular risk. This is a crucial investment in your longevity, with re-testing planned.",
+                f"Your diagnostics show ApoB at {current_metrics['ApoB']} mg/dL. {effect_text} Our strategy involves aggressive, integrated lifestyle changes via Carla and Rachel, aiming for significant reduction by Q2. This is a high-ROI health investment."
             ])
-            decision_rationale = "Elevated ApoB is a serious cardiovascular risk factor based on Q1 diagnostics. The intervention prioritizes Rohan's top health goal, using integrated lifestyle changes for maximum impact and long-term investment. This approach is more sustainable than medication alone and is a cost-effective preventative measure."
+            decision_rationale = "Elevated ApoB is a serious cardiovascular risk factor based on diagnostics. The intervention prioritizes Rohan's top health goal, using integrated lifestyle changes for maximum impact and long-term investment. This approach is more sustainable than medication alone and is a cost-effective preventative measure."
             pillar_impact = "Pillar 3 (Fuel), Pillar 4 (Structural), Pillar 1 (Autonomic)"
             monetary_factor = "Cost-effective preventative measure."
+            intervention_effect = effectiveness
+            next_steps = next_steps # From conditional logic above
         elif "travel protocol" in prompt_lower and role == "Advik":
             response_text = random.choice([
                 "For your Tokyo trip, we'll build a precise light exposure and avoidance schedule to shift your circadian rhythm, and Rachel will find a suitable gym near your hotel. This proactive approach aims to minimize jet lag and maintain your health routine, maximizing your performance during demanding travel.",
@@ -296,6 +316,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             decision_rationale = "To proactively mitigate the known impact of international travel on Rohan's POTS and overall performance, ensuring his demanding work schedule doesn't derail health progress. Focus on time-efficient, integrated solutions that fit his travel lifestyle, maximizing his output during business trips."
             pillar_impact = "Pillar 1 (Autonomic), Pillar 2 (Sleep), Pillar 4 (Structural), Pillar 5 (Stress Resilience)"
             time_efficiency = "Precise schedule for jet lag, gym finding for efficiency."
+            next_steps = "Follow personalized light exposure schedule and utilize identified local gyms during travel."
         elif "illness" in prompt_lower and role == "Dr. Warren":
             response_text = random.choice([
                 "Rohan, the biotelemetry strongly suggests a viral infection. We are initiating the Elyx Sick Day Protocol immediately. You must postpone your board meeting. Your cognitive function will be severely impaired, and you risk a much longer recovery if you push through. Ruby will manage rescheduling.",
@@ -306,6 +327,8 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             decision_rationale = "Prioritizing immediate health stabilization and long-term recovery over short-term business commitments, as pushing through illness risks severe setbacks and prolonged recovery, ultimately impacting long-term performance and health investment. This maximizes long-term output and avoids higher future medical costs."
             pillar_impact = "All Pillars (Acute Health Crisis)"
             monetary_factor = "Avoids higher future medical costs."
+            next_steps = "Engage Elyx Sick Day Protocol: rest, hydration, Ruby will reschedule meetings."
+            intervention_effect = "Severe fatigue, recovery score dropped significantly." # Default for this intervention
         elif "piano" in prompt_lower and role == "Neel":
             response_text = random.choice([
                 "We agree. Learning piano is an excellent intervention for cognitive longevity, engaging multiple brain domains. We will add 'Weekly Piano Practice' as a trackable goal within Pillar 5 (Stress Management) of your Plan. This integrates a personal interest with health investment and offers a non-monetary health benefit.",
@@ -317,6 +340,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             pillar_impact = "Pillar 5 (Stress Resilience), Cognitive Health"
             monetary_factor = "Non-monetary health benefit."
             time_efficiency = "Integrated into weekly routine."
+            next_steps = "Begin weekly piano practice; track subjective focus and HRV."
         elif "deviate from exercise" in prompt_lower:
             response_text = random.choice([
                 "Understood, Rohan. It's common for plans to need adjustments. Let's adapt. We can explore shorter, more flexible routines for your travel weeks, or bodyweight alternatives that require no equipment, maximizing adherence even when time is tight. Your health journey is dynamic.",
@@ -327,6 +351,8 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             decision_rationale = "Adapting to Rohan's dynamic schedule and adherence patterns to ensure continued progress, focusing on flexible and time-efficient alternatives to maximize health output without feeling forced."
             monetary_factor = "Suggests bodyweight alternatives (cost-effective)."
             time_efficiency = "Shorter, more flexible routines."
+            next_steps = "Implement flexible exercise routines; report on adherence."
+            intervention_effect = "Plan adapted to improve adherence; metrics may stabilize or improve."
         elif "monetary concern" in prompt_lower:
             response_text = random.choice([
                 "We hear your concern about monetary factors. We always strive to provide cost-effective alternatives and ensure every recommendation is a justified investment in your long-term health. For example, simple dietary changes can have a huge impact on ApoB without high cost.",
@@ -336,6 +362,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             ])
             decision_rationale = "Prioritizing Rohan's financial considerations by offering cost-effective alternatives and justifying investments as long-term health benefits, ensuring the plan is sustainable and maximizes value."
             monetary_factor = "Emphasizes cost-effectiveness and justified investment."
+            next_steps = "Review proposed cost-effective alternatives with relevant specialist."
         elif "time" in prompt_lower or "busy" in prompt_lower or "quick" in prompt_lower:
             response_text = random.choice([
                 "We understand your time constraints. Our goal is to seamlessly integrate health into your busy life. We can focus on micro-interventions, like 5-minute mobility breaks or strategic meal prepping with Javier, to maximize health output with minimal time investment.",
@@ -345,6 +372,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             ])
             decision_rationale = "Adapting the plan to Rohan's severe time constraints by focusing on micro-interventions and efficient strategies, ensuring health activities are integrated seamlessly and maximize output per minute invested."
             time_efficiency = "Focus on micro-interventions and strategic planning."
+            next_steps = "Implement time-efficient strategies; track impact on schedule and health."
         else:
             response_text = random.choice([
                 f"Hi Rohan, {role} here. We're continuously optimizing your plan based on your feedback and data to maximize your health output. How are things going with your current priorities?",
@@ -358,8 +386,9 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             pillar_impact = "General"
             monetary_factor = "General emphasis on value." # Still set for data, but less explicit in text
             time_efficiency = "General emphasis on efficiency." # Still set for data, but less explicit in text
+            next_steps = "Continue with current plan; Elyx team will review for further optimizations."
 
-    return response_text, decision_rationale, pillar_impact, health_metrics_snapshot, intervention_effect, monetary_factor, time_efficiency, service_interaction_type, specialist_involved
+    return response_text, decision_rationale, pillar_impact, health_metrics_snapshot, intervention_effect, monetary_factor, time_efficiency, service_interaction_type, specialist_involved, next_steps
 
 # --- API Endpoints ---
 @app.route('/api/generate-journey', methods=['POST'])
@@ -384,25 +413,25 @@ def api_generate_journey():
     ROHAN_ASKED_TOPICS.clear()
 
     # Initial onboarding
-    rohan_msg, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", "Initial onboarding: I need a proper, coordinated plan. My Garmin HR seems off.", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+    rohan_msg, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist, rohan_next_steps = generate_llm_response("Rohan", "Initial onboarding: I need a proper, coordinated plan. My Garmin HR seems off.", CURRENT_HEALTH_METRICS, chat_history, journey_data)
     journey_data.append({
         "type": "message", "sender": "Rohan", "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
         "content": rohan_msg, "pillar": rohan_pillar, "relatedTo": "Initial onboarding",
         "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
         "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
         "timeEfficiency": rohan_time, "serviceInteractionType": rohan_interaction_type,
-        "specialistInvolved": rohan_specialist
+        "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
     })
     chat_history.append({"role": "user", "parts": [{"text": rohan_msg}]})
 
-    ruby_msg, ruby_rationale, ruby_pillar, ruby_metrics, ruby_effect, ruby_monetary, ruby_time, ruby_interaction_type, ruby_specialist = generate_llm_response("Ruby", "welcome Rohan and acknowledge concerns", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+    ruby_msg, ruby_rationale, ruby_pillar, ruby_metrics, ruby_effect, ruby_monetary, ruby_time, ruby_interaction_type, ruby_specialist, ruby_next_steps = generate_llm_response("Ruby", "welcome Rohan and acknowledge concerns", CURRENT_HEALTH_METRICS, chat_history, journey_data)
     journey_data.append({
         "type": "message", "sender": "Ruby", "timestamp": (current_date + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M"),
         "content": ruby_msg, "pillar": ruby_pillar, "relatedTo": "Rohan_Initial",
         "decisionRationale": ruby_rationale, "healthMetricsSnapshot": ruby_metrics,
         "interventionEffect": ruby_effect, "monetaryFactor": ruby_monetary,
         "timeEfficiency": ruby_time, "serviceInteractionType": ruby_interaction_type,
-        "specialistInvolved": ruby_specialist
+        "specialistInvolved": ruby_specialist, "nextSteps": ruby_next_steps
     })
     chat_history.append({"role": "model", "parts": [{"text": ruby_msg}]})
     
@@ -412,7 +441,7 @@ def api_generate_journey():
         "decisionRationale": "Standard Elyx onboarding process to establish baseline and goals for a personalized plan.",
         "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(), "interventionEffect": None,
         "monetaryFactor": None, "timeEfficiency": None, "serviceInteractionType": "onboarding",
-        "specialistInvolved": "Elyx Team"
+        "specialistInvolved": "Elyx Team", "nextSteps": "Complete medical record consolidation and initial assessments."
     })
 
     # Simulate 8 months (approx 32 weeks)
@@ -423,25 +452,25 @@ def api_generate_journey():
         if week % 4 == 0: # Monthly review
             team_member = random.choice(["Neel", "Ruby"])
             msg_context = f"weekly/monthly check-in for progress review and alignment with goals. Current metrics: {CURRENT_HEALTH_METRICS}. Rohan's adherence is ~50%."
-            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response(team_member, msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response(team_member, msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": team_member, "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
                 "content": msg, "pillar": pillar, "relatedTo": "Previous interactions",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
                 "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
-                "specialistInvolved": specialist
+                "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
             
-            rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", f"response to monthly check-in. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist, rohan_next_steps = generate_llm_response("Rohan", f"response to monthly check-in. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": "Rohan", "timestamp": (current_date + timedelta(minutes=random.randint(5, 15))).strftime("%Y-%m-%d %H:%M"),
                 "content": rohan_response, "pillar": rohan_pillar, "relatedTo": "Monthly check-in",
                 "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                 "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
                 "timeEfficiency": rohan_time, "serviceInteractionType": rohan_interaction_type,
-                "specialistInvolved": rohan_specialist
+                "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
             })
             chat_history.append({"role": "user", "parts": [{"text": rohan_response}]})
 
@@ -449,25 +478,25 @@ def api_generate_journey():
         # --- Diagnostic Tests (Every 3 months) ---
         if week % 12 == 0: # Roughly every 3 months
             msg_context = "schedule Q1/Q2/Q3 diagnostic panel"
-            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response("Ruby", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response("Ruby", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": "Ruby", "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
                 "content": msg, "pillar": pillar, "relatedTo": "Program requirement",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
                 "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
-                "specialistInvolved": specialist
+                "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
             
-            rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", f"response to diagnostic scheduling. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist, rohan_next_steps = generate_llm_response("Rohan", f"response to diagnostic scheduling. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": "Rohan", "timestamp": (current_date + timedelta(minutes=random.randint(5, 15))).strftime("%Y-%m-%d %H:%M"),
                 "content": rohan_response, "pillar": rohan_pillar, "relatedTo": "Diagnostic scheduling",
                 "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                 "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
                 "timeEfficiency": rohan_time, "serviceInteractionType": rohan_interaction_type,
-                "specialistInvolved": rohan_specialist
+                "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
             })
             chat_history.append({"role": "user", "parts": [{"text": rohan_response}]})
 
@@ -478,7 +507,8 @@ def api_generate_journey():
                 "details": "Comprehensive baseline tests for metabolic and hormonal health.",
                 "decisionRationale": rationale, "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(),
                 "interventionEffect": None, "monetaryFactor": monetary, "timeEfficiency": time_eff,
-                "serviceInteractionType": "diagnostic_scheduling", "specialistInvolved": "Ruby"
+                "serviceInteractionType": "diagnostic_scheduling", "specialistInvolved": "Ruby",
+                "nextSteps": "Complete diagnostic tests."
             })
 
             # Simulate results discussion a week later
@@ -489,25 +519,25 @@ def api_generate_journey():
                 CURRENT_HEALTH_METRICS["HRV"] = 48 # Slight increase
                 CURRENT_HEALTH_METRICS["POTS_symptoms"] = "moderate"
                 msg_context = f"discuss Q1 diagnostic results, elevated ApoB: {CURRENT_HEALTH_METRICS['ApoB']}"
-                msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response("Dr. Warren", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+                msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response("Dr. Warren", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 journey_data.append({
                     "type": "message", "sender": "Dr. Warren", "timestamp": results_date.strftime("%Y-%m-%d %H:%M"),
                     "content": msg, "pillar": pillar, "relatedTo": "Q1 Diagnostics",
                     "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                     "interventionEffect": effect, "monetaryFactor": monetary,
                     "timeEfficiency": time_eff, "serviceInteractionType": "diagnostic_results",
-                    "specialistInvolved": specialist
+                    "specialistInvolved": specialist, "nextSteps": next_steps_team
                 })
                 chat_history.append({"role": "model", "parts": [{"text": msg}]})
                 
-                rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", f"response to ApoB results. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+                rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist, rohan_next_steps = generate_llm_response("Rohan", f"response to ApoB results. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 journey_data.append({
                     "type": "message", "sender": "Rohan", "timestamp": (results_date + timedelta(minutes=random.randint(5, 15))).strftime("%Y-%m-%d %H:%M"),
                     "content": rohan_response, "pillar": rohan_pillar, "relatedTo": "ApoB discussion",
                     "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                     "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
                     "timeEfficiency": rohan_time, "serviceInteractionType": rohan_interaction_type,
-                    "specialistInvolved": rohan_specialist
+                    "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
                 })
                 chat_history.append({"role": "user", "parts": [{"text": rohan_response}]})
 
@@ -517,7 +547,8 @@ def api_generate_journey():
                     "decisionRationale": rationale, "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(),
                     "interventionEffect": "ApoB elevated, focus shifted to metabolic health.",
                     "monetaryFactor": "Preventative measures to avoid future high costs.", "timeEfficiency": "Efficient diagnosis.",
-                    "serviceInteractionType": "diagnostic_review", "specialistInvolved": "Dr. Warren"
+                    "serviceInteractionType": "diagnostic_review", "specialistInvolved": "Dr. Warren",
+                    "nextSteps": "Implement dietary changes via Carla and exercise adjustments via Rachel; re-test in Q2."
                 })
 
             elif week == 24: # Q2 results
@@ -527,25 +558,25 @@ def api_generate_journey():
                 CURRENT_HEALTH_METRICS["POTS_symptoms"] = "mild"
                 CURRENT_HEALTH_METRICS["BackPain"] = "none"
                 msg_context = f"discuss Q2 diagnostic results, improved ApoB: {CURRENT_HEALTH_METRICS['ApoB']}"
-                msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response("Dr. Warren", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+                msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response("Dr. Warren", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 journey_data.append({
                     "type": "message", "sender": "Dr. Warren", "timestamp": results_date.strftime("%Y-%m-%d %H:%M"),
                     "content": msg, "pillar": pillar, "relatedTo": "Q2 Diagnostics",
                     "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                     "interventionEffect": effect, "monetaryFactor": monetary,
-                    "timeEfficiency": time_eff, "serviceInteractionType": "diagnostic_results",
-                    "specialistInvolved": specialist
+                    "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
+                    "specialistInvolved": specialist, "nextSteps": next_steps_team
                 })
                 chat_history.append({"role": "model", "parts": [{"text": msg}]})
                 
-                rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", f"response to improved ApoB results. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+                rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist, rohan_next_steps = generate_llm_response("Rohan", f"response to improved ApoB results. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 journey_data.append({
                     "type": "message", "sender": "Rohan", "timestamp": (results_date + timedelta(minutes=random.randint(5, 15))).strftime("%Y-%m-%d %H:%M"),
                     "content": rohan_response, "pillar": rohan_pillar, "relatedTo": "ApoB discussion",
                     "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                     "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
                     "timeEfficiency": rohan_time, "serviceInteractionType": rohan_interaction_type,
-                    "specialistInvolved": rohan_specialist
+                    "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
                 })
                 chat_history.append({"role": "user", "parts": [{"text": rohan_response}]})
 
@@ -555,58 +586,59 @@ def api_generate_journey():
                     "decisionRationale": rationale, "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(),
                     "interventionEffect": "ApoB significantly improved, HRV increased, POTS symptoms mild.",
                     "monetaryFactor": "Positive ROI on health investment.", "timeEfficiency": "Efficient progress.",
-                    "serviceInteractionType": "diagnostic_review", "specialistInvolved": "Dr. Warren"
+                    "serviceInteractionType": "diagnostic_review", "specialistInvolved": "Dr. Warren",
+                    "nextSteps": "Continue current plan; focus on maintenance and further optimization."
                 })
 
         # --- Exercise Updates (Every 2 weeks) ---
         if week % 2 == 0:
             team_member = "Rachel"
             msg_context = f"update exercise plan based on progress. Current metrics: {CURRENT_HEALTH_METRICS}. Rohan's adherence is ~50%."
-            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response(team_member, msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response(team_member, msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": team_member, "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
                 "content": msg, "pillar": pillar, "relatedTo": "Exercise progress",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
                 "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
-                "specialistInvolved": specialist
+                "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
             
             # Simulate Rohan's adherence (50% adherence)
             if random.random() < 0.5: # Rohan deviates
-                rohan_deviation, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", f"deviate from exercise plan due to travel/time/soreness. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+                rohan_deviation, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist, rohan_next_steps = generate_llm_response("Rohan", f"deviate from exercise plan due to travel/time/soreness. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 journey_data.append({
                     "type": "message", "sender": "Rohan", "timestamp": (current_date + timedelta(minutes=random.randint(30, 60))).strftime("%Y-%m-%d %H:%M"),
                     "content": rohan_deviation, "pillar": rohan_pillar, "relatedTo": "Exercise deviation",
                     "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                     "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
                     "timeEfficiency": rohan_time, "serviceInteractionType": rohan_interaction_type,
-                    "specialistInvolved": rohan_specialist
+                    "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
                 })
                 chat_history.append({"role": "user", "parts": [{"text": rohan_deviation}]})
                 
                 # Elyx team adapts
-                adapt_msg, adapt_rationale, adapt_pillar, adapt_metrics, adapt_effect, adapt_monetary, adapt_time, adapt_interaction_type, adapt_specialist = generate_llm_response(random.choice(["Rachel", "Advik"]), f"adapt to Rohan's exercise deviation. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+                adapt_msg, adapt_rationale, adapt_pillar, adapt_metrics, adapt_effect, adapt_monetary, adapt_time, adapt_interaction_type, adapt_specialist, adapt_next_steps = generate_llm_response(random.choice(["Rachel", "Advik"]), f"adapt to Rohan's exercise deviation. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 journey_data.append({
                     "type": "message", "sender": random.choice(["Rachel", "Advik"]), "timestamp": (current_date + timedelta(minutes=random.randint(90, 120))).strftime("%Y-%m-%d %H:%M"),
                     "content": adapt_msg, "pillar": adapt_pillar, "relatedTo": "Adaptation",
                     "decisionRationale": adapt_rationale, "healthMetricsSnapshot": adapt_metrics,
                     "interventionEffect": adapt_effect, "monetaryFactor": adapt_monetary,
                     "timeEfficiency": adapt_time, "serviceInteractionType": adapt_interaction_type,
-                    "specialistInvolved": adapt_specialist
+                    "specialistInvolved": adapt_specialist, "nextSteps": adapt_next_steps
                 })
                 chat_history.append({"role": "model", "parts": [{"text": adapt_msg}]})
 
             else: # Rohan adheres
-                rohan_adherence, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", f"adhere to exercise plan. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+                rohan_adherence, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist, rohan_next_steps = generate_llm_response("Rohan", f"adhere to exercise plan. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 journey_data.append({
                     "type": "message", "sender": "Rohan", "timestamp": (current_date + timedelta(minutes=random.randint(30, 60))).strftime("%Y-%m-%d %H:%M"),
                     "content": rohan_adherence, "pillar": rohan_pillar, "relatedTo": "Exercise adherence",
                     "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                     "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
                     "timeEfficiency": rohan_time, "serviceInteractionType": rohan_interaction_type,
-                    "specialistInvolved": rohan_specialist
+                    "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
                 })
                 chat_history.append({"role": "user", "parts": [{"text": rohan_adherence}]})
             
@@ -621,26 +653,26 @@ def api_generate_journey():
             
             # Pre-travel protocol
             msg_context = f"prepare travel protocol for upcoming trip. Current state: {CURRENT_HEALTH_METRICS}"
-            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response("Advik", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response("Advik", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": "Advik", "timestamp": travel_start_date.strftime("%Y-%m-%d %H:%M"),
                 "content": msg, "pillar": pillar, "relatedTo": "Travel",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
                 "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
-                "specialistInvolved": specialist
+                "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
 
             msg_context = f"confirm travel logistics for upcoming trip. Current state: {CURRENT_HEALTH_METRICS}"
-            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response("Ruby", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response("Ruby", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": "Ruby", "timestamp": (travel_start_date + timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M"),
                 "content": msg, "pillar": pillar, "relatedTo": "Travel",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
                 "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
-                "specialistInvolved": specialist
+                "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
             
@@ -650,20 +682,21 @@ def api_generate_journey():
                 "decisionRationale": "Proactive mitigation of travel stress on health goals, maximizing performance during demanding trips.",
                 "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(), "interventionEffect": "Potential for jet lag/fatigue.",
                 "monetaryFactor": "Business travel cost, focus on health investment ROI.", "timeEfficiency": "Optimized for busy travel schedule.",
-                "serviceInteractionType": "travel_event", "specialistInvolved": "Advik, Ruby"
+                "serviceInteractionType": "travel_event", "specialistInvolved": "Advik, Ruby",
+                "nextSteps": "Follow travel protocol; Advik to monitor recovery post-trip."
             })
             
             # Simulate post-travel check-in
-            post_travel_date = travel_start_date + timedelta(days=7)
+            post_travel_date = travel_start_date + timedelta(days=7) # Fixed typo: travel_start_date to travel_date
             msg_context = f"post-travel recovery check-in. Current state: {CURRENT_HEALTH_METRICS}"
-            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response("Advik", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response("Advik", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": "Advik", "timestamp": post_travel_date.strftime("%Y-%m-%d %H:%M"),
                 "content": msg, "pillar": pillar, "relatedTo": "Post-travel recovery",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
                 "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
-                "specialistInvolved": specialist
+                "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
             
@@ -709,27 +742,27 @@ def api_generate_journey():
                 
                 rohan_query = random.choice(available_questions_for_topic)
                 
-                rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist = generate_llm_response("Rohan", rohan_query, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+                rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist, rohan_next_steps = generate_llm_response("Rohan", rohan_query, CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 journey_data.append({
                     "type": "message", "sender": "Rohan", "timestamp": (current_date + timedelta(hours=random.randint(1, 24))).strftime("%Y-%m-%d %H:%M"),
                     "content": rohan_query, "pillar": rohan_pillar, "relatedTo": chosen_topic,
                     "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                     "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
                     "timeEfficiency": rohan_time, "serviceInteractionType": rohan_interaction_type,
-                    "specialistInvolved": rohan_specialist
+                    "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
                 })
                 chat_history.append({"role": "user", "parts": [{"text": rohan_query}]})
                 
                 # Elyx team responds to query
                 team_member = random.choice(list(ELYX_TEAM_PERSONAS.keys()))
-                response_to_query, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response(team_member, f"respond to Rohan's query about {chosen_topic}. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
+                response_to_query, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response(team_member, f"respond to Rohan's query about {chosen_topic}. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 journey_data.append({
                     "type": "message", "sender": team_member, "timestamp": (current_date + timedelta(hours=random.randint(2, 48))).strftime("%Y-%m-%d %H:%M"),
                     "content": response_to_query, "pillar": pillar, "relatedTo": chosen_topic,
                     "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                     "interventionEffect": effect, "monetaryFactor": monetary,
                     "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
-                    "specialistInvolved": specialist
+                    "specialistInvolved": specialist, "nextSteps": next_steps_team
                 })
                 chat_history.append({"role": "model", "parts": [{"text": response_to_query}]})
                 
@@ -744,14 +777,14 @@ def api_generate_journey():
         # --- Simulate specific events/concerns over time ---
         if week == 5: # Simulate initial back pain flare-up
             msg_context = "suggest couch stretch for back pain"
-            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response("Rachel", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response("Rachel", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": "Rachel", "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
                 "content": msg, "pillar": pillar, "relatedTo": "Back pain",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
                 "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
-                "specialistInvolved": specialist
+                "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
             journey_data.append({
@@ -760,20 +793,21 @@ def api_generate_journey():
                 "decisionRationale": rationale, "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(),
                 "interventionEffect": "Initial relief, focus on long-term mobility.",
                 "monetaryFactor": "No direct cost, time-efficient.", "timeEfficiency": "2-minute routine.",
-                "serviceInteractionType": "intervention_event", "specialistInvolved": "Rachel"
+                "serviceInteractionType": "intervention_event", "specialistInvolved": "Rachel",
+                "nextSteps": "Perform couch stretch daily and report back on effectiveness."
             })
             CURRENT_HEALTH_METRICS["BackPain"] = "mild" # Simulate slight improvement
 
         if week == 10: # Simulate a major illness setback
             msg_context = "initiate sick day protocol due to viral infection"
-            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response("Dr. Warren", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response("Dr. Warren", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": "Dr. Warren", "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
                 "content": msg, "pillar": pillar, "relatedTo": "Illness",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
                 "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
-                "specialistInvolved": specialist
+                "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
             journey_data.append({
@@ -783,21 +817,22 @@ def api_generate_journey():
                 "interventionEffect": "Severe fatigue, recovery score dropped significantly.",
                 "monetaryFactor": "Potential business cost due to postponed meeting, but avoids higher future medical costs.",
                 "timeEfficiency": "Focus on radical rest, minimal time for other activities.",
-                "serviceInteractionType": "health_crisis_event", "specialistInvolved": "Dr. Warren, Ruby"
+                "serviceInteractionType": "health_crisis_event", "specialistInvolved": "Dr. Warren, Ruby",
+                "nextSteps": "Engage Elyx Sick Day Protocol: rest, hydration, Ruby will reschedule meetings."
             })
             CURRENT_HEALTH_METRICS["RecoveryScore"] = 10 # Simulate very low recovery
             CURRENT_HEALTH_METRICS["POTS_symptoms"] = "severe" # Worsen POTS
 
         if week == 15: # Simulate a new health investment (piano)
             msg_context = "add weekly piano practice as trackable goal"
-            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response("Neel", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
+            msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response("Neel", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
                 "type": "message", "sender": "Neel", "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
                 "content": msg, "pillar": pillar, "relatedTo": "New Goal",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
                 "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
-                "specialistInvolved": specialist
+                "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
             journey_data.append({
@@ -807,7 +842,8 @@ def api_generate_journey():
                 "interventionEffect": "Expected long-term cognitive and stress resilience benefits.",
                 "monetaryFactor": "Initial cost of piano/lessons, long-term non-monetary benefit.",
                 "timeEfficiency": "Integrated into weekly routine, flexible scheduling.",
-                "serviceInteractionType": "goal_setting_event", "specialistInvolved": "Neel"
+                "serviceInteractionType": "goal_setting_event", "specialistInvolved": "Neel",
+                "nextSteps": "Begin weekly piano practice; track subjective focus and HRV."
             })
         
         # Simulate general metric fluctuations
@@ -843,18 +879,54 @@ def api_explain_decision():
     if not query:
         return jsonify({"error": "Query is required."}), 400
     
-    # Use the generate_llm_response function to get the explanation
-    # Pass Rohan's profile and the full journey data as context to simulate a smarter response
-    explanation, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist = generate_llm_response(
-        role="Elyx AI Concierge", # Simulate AI persona for explanation
-        prompt_context=query,
-        current_metrics=CURRENT_HEALTH_METRICS, # Pass current metrics
-        chat_history=[], # Not directly used for this specific explanation, but can be
-        journey_data_so_far=journey_data_context # Pass the full journey for context
-    )
+    # Search for the most relevant item in journey_data_context
+    relevant_item = None
+    query_lower = query.lower()
+    
+    # Prioritize events/messages with decisionRationales
+    searchable_items = [item for item in journey_data_context if 'decisionRationale' in item and item['decisionRationale']]
+    
+    # Simple keyword matching for relevance
+    for item in reversed(searchable_items): # Search recent history first
+        content_to_search = item.get('content', '') + ' ' + item.get('description', '') + ' ' + item.get('details', '') + ' ' + item.get('decisionRationale', '')
+        if query_lower in content_to_search.lower():
+            relevant_item = item
+            break # Found the most recent relevant item
+
+    explanation_text = "I'm sorry, I couldn't find a specific decision matching your query in your journey history. Please try rephrasing or asking about a specific intervention."
+    rationale = None
+    pillar = None
+    metrics_snap = None
+    effect = None
+    monetary = None
+    time_eff = None
+    specialist = None
+    next_steps = None # Initialize next_steps
+
+    if relevant_item:
+        explanation_text = relevant_item.get('content') or relevant_item.get('description') or relevant_item.get('details')
+        rationale = relevant_item.get('decisionRationale')
+        pillar = relevant_item.get('pillar')
+        metrics_snap = relevant_item.get('healthMetricsSnapshot')
+        effect = relevant_item.get('interventionEffect')
+        monetary = relevant_item.get('monetaryFactor')
+        time_eff = relevant_item.get('timeEfficiency')
+        specialist = relevant_item.get('specialistInvolved')
+        next_steps = relevant_item.get('nextSteps') # Get next_steps from the found item
+    else:
+        # Fallback to general keyword responses if no specific journey item is found
+        # Note: When falling back, we don't have a specific 'relevant_item' from history,
+        # so we rely on the generate_llm_response's default behavior for these fields.
+        explanation_text, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps = generate_llm_response(
+            role="Elyx AI Concierge",
+            prompt_context=query,
+            current_metrics=CURRENT_HEALTH_METRICS,
+            chat_history=[],
+            journey_data_so_far=[] # Don't pass full context again to avoid recursive search
+        )
     
     # Format the explanation to include the new fields
-    formatted_explanation = f"{explanation}\n\n"
+    formatted_explanation = f"{explanation_text}\n\n"
     if rationale:
         formatted_explanation += f"**Rationale:** {rationale}\n"
     if pillar:
@@ -867,6 +939,8 @@ def api_explain_decision():
         formatted_explanation += f"**Time Efficiency:** {time_eff}\n"
     if specialist:
         formatted_explanation += f"**Specialist Involved:** {specialist}\n"
+    if next_steps: # Include next_steps in the formatted explanation
+        formatted_explanation += f"**Following Steps:** {next_steps}\n"
     if metrics_snap:
         formatted_explanation += f"**Metrics at Time:** {json.dumps(metrics_snap, indent=2)}\n"
 
@@ -874,4 +948,3 @@ def api_explain_decision():
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG') == '1', host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
