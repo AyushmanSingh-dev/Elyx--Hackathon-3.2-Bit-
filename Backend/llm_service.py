@@ -234,7 +234,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             next_steps = "Complete medical record consolidation via Ruby."
         elif "medical records" in prompt_lower and role == "Ruby":
             response_text = random.choice([
-                "The timeline can vary depending on clinics' response speed, but we will manage the entire process. We typically aim for records within 2-3 weeks. We'll provide daily updates to keep you in the loop, saving your time.",
+                "The timeline can vary depending on clinics' response speed, but we will manage the entire process. We typically aim for records within 2-3 weeks. We'll provide daily updates to keep you in the loop, ensuring minimal disruption to your schedule.", # Adjusted phrasing
                 "We're on it! Consolidating your records is our priority. We'll handle all communication with clinics and keep you updated every step of the way, minimizing your effort.",
                 "Don't worry about the record collection. We'll streamline the process, aiming for completion within 2-3 weeks, and notify you as soon as they're ready. Your time is valuable.",
                 "Sarah has been briefed on the medical record collection. We anticipate completion within 2-3 weeks, and you'll receive real-time updates, ensuring minimal disruption to your schedule."
@@ -288,20 +288,20 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
         elif "apo b" in prompt_lower and role == "Dr. Warren":
             # Simulate different effectiveness based on current ApoB
             if current_metrics["ApoB"] < 90:
-                effect_text = "ApoB has shown significant improvement, indicating positive progress on cardiovascular health."
+                effect_text = "Your ApoB has shown significant improvement, indicating positive progress on cardiovascular health. This is a great win for your metabolic health!"
                 effectiveness = "effective"
-                next_steps = "Continue current dietary and exercise interventions; re-evaluate in Q3."
+                next_steps = "Continue current dietary and exercise interventions; we'll re-evaluate in Q3 to ensure sustained progress."
             else:
-                effect_text = "ApoB remains elevated, requiring continued focus and potential adjustments to interventions."
+                effect_text = "Your ApoB remains elevated, requiring continued focus and potential adjustments to interventions. This is a key area for maximizing your long-term health output."
                 effectiveness = "partially effective"
-                next_steps = "Carla will refine dietary plan, Rachel will review exercise intensity. Re-test in Q2."
+                next_steps = "Carla will refine your dietary plan, and Rachel will review exercise intensity. We'll re-test in Q2 to track progress."
 
             response_text = random.choice([
+                f"Dr. Warren here. Your Q1 diagnostics show ApoB at {current_metrics['ApoB']} mg/dL. {effect_text} Our strategy involves aggressive, integrated lifestyle changes via Carla and Rachel, aiming for significant reduction by Q2. This is a high-ROI health investment.",
                 f"Rohan, your ApoB is {current_metrics['ApoB']} mg/dL. {effect_text} This is a primary focus for long-term heart disease risk reduction, aligning with your top health goal. Carla will lead dietary interventions (reducing saturated fat, increasing fiber), and Rachel's exercise plan will be critical. We will aggressively target this with lifestyle changes and re-test in Q2.",
-                f"Dr. Warren. Your ApoB at {current_metrics['ApoB']} mg/dL. {effect_text} This is a priority. We're launching a targeted intervention led by Carla (diet) and Rachel (exercise) to reduce your cardiovascular risk. This is a crucial investment in your longevity, with re-testing planned.",
-                f"Your diagnostics show ApoB at {current_metrics['ApoB']} mg/dL. {effect_text} Our strategy involves aggressive, integrated lifestyle changes via Carla and Rachel, aiming for significant reduction by Q2. This is a high-ROI health investment."
+                f"Your Q1 diagnostics show elevated ApoB. This is a serious indicator for heart health, directly impacting your primary goal. Our strategy involves aggressive, integrated lifestyle changes via Carla and Rachel, aiming for significant reduction by Q2. This is a high-ROI health investment."
             ])
-            decision_rationale = "Elevated ApoB is a serious cardiovascular risk factor based on diagnostics. The intervention prioritizes Rohan's top health goal, using integrated lifestyle changes for maximum impact and long-term investment. This approach is more sustainable than medication alone and is a cost-effective preventative measure."
+            decision_rationale = "Elevated ApoB is a serious cardiovascular risk factor based on Q1 diagnostics. The intervention prioritizes Rohan's top health goal, using integrated lifestyle changes for maximum impact and long-term investment. This approach is more sustainable than medication alone and is a cost-effective preventative measure."
             pillar_impact = "Pillar 3 (Fuel), Pillar 4 (Structural), Pillar 1 (Autonomic)"
             monetary_factor = "Cost-effective preventative measure."
             intervention_effect = effectiveness
@@ -506,7 +506,7 @@ def api_generate_journey():
                 "description": f"Quarterly Diagnostic Panel Scheduled (Week {week})",
                 "details": "Comprehensive baseline tests for metabolic and hormonal health.",
                 "decisionRationale": rationale, "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(),
-                "interventionEffect": None, "monetaryFactor": monetary, "timeEfficiency": time_eff,
+                "interventionEffect": None, "monetaryFactor": None, "timeEfficiency": None,
                 "serviceInteractionType": "diagnostic_scheduling", "specialistInvolved": "Ruby",
                 "nextSteps": "Complete diagnostic tests."
             })
@@ -687,7 +687,7 @@ def api_generate_journey():
             })
             
             # Simulate post-travel check-in
-            post_travel_date = travel_start_date + timedelta(days=7) # Fixed typo: travel_start_date to travel_date
+            post_travel_date = travel_start_date + timedelta(days=7) # Fixed: Used travel_start_date
             msg_context = f"post-travel recovery check-in. Current state: {CURRENT_HEALTH_METRICS}"
             msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response("Advik", msg_context, CURRENT_HEALTH_METRICS, chat_history, journey_data)
             journey_data.append({
@@ -915,8 +915,6 @@ def api_explain_decision():
         next_steps = relevant_item.get('nextSteps') # Get next_steps from the found item
     else:
         # Fallback to general keyword responses if no specific journey item is found
-        # Note: When falling back, we don't have a specific 'relevant_item' from history,
-        # so we rely on the generate_llm_response's default behavior for these fields.
         explanation_text, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps = generate_llm_response(
             role="Elyx AI Concierge",
             prompt_context=query,
