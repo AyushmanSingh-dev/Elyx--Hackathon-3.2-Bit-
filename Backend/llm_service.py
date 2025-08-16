@@ -75,31 +75,83 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
     if role == "Rohan":
         service_interaction_type = "member-initiated query"
         if "coordinated plan" in prompt_lower:
-            response_text = "Ruby, I'm feeling overwhelmed with my ad-hoc health routine. High work stress, and my Garmin HR seems off even on rest days. I need a proper, coordinated plan. My current supplement list is attached."
+            response_text = random.choice([
+                "Ruby, I'm feeling overwhelmed with my ad-hoc health routine. High work stress, and my Garmin HR seems off even on rest days. I need a proper, coordinated plan. My current supplement list is attached.",
+                "My current health efforts feel disjointed. Can we establish a more cohesive plan? My wearable data feels inconsistent.",
+                "I'm ready for a structured health approach. My current stress levels are high, and my Garmin data isn't reflecting recovery. Attached is my supplement list."
+            ])
         elif "medical records" in prompt_lower:
-            response_text = "Acknowledged. How long will that take? And what about my fitness goals?"
+            response_text = random.choice([
+                "Acknowledged. How long will that take? And what about my fitness goals?",
+                "Understood. What's the typical turnaround for record consolidation? Also, let's discuss optimizing my workouts.",
+                "Okay, I'll ensure Sarah assists with records. Separately, I'm keen to refine my fitness strategy."
+            ])
         elif "movement assessment" in prompt_lower:
-            response_text = "Understood. I'm also thinking about my stress levels. Any immediate tips?"
+            response_text = random.choice([
+                "Understood. I'm also thinking about my stress levels. Any immediate tips?",
+                "A movement assessment makes sense. On another note, I've been feeling more stressed. Any quick stress relief techniques?",
+                "Good. While we schedule that, what are some immediate strategies for managing cognitive load?"
+            ])
         elif "couch stretch" in prompt_lower and "helped" in prompt_lower:
-            response_text = "The couch stretch helped a bit! Also, for stress, any immediate dietary tips? I struggle with consistent energy."
+            response_text = random.choice([
+                "The couch stretch helped a bit! Also, for stress, any immediate dietary tips? I struggle with consistent energy.",
+                "That stretch provided some relief. What about nutritional strategies for managing stress and energy dips?",
+                "Good call on the stretch. What are some quick dietary hacks for energy and stress during busy days?"
+            ])
         elif "diagnostic panel" in prompt_lower:
-            response_text = "Yes, next Tuesday works. Confirmed. I'm keen to see the numbers, though I'm always a bit skeptical until I see tangible results."
+            response_text = random.choice([
+                "Yes, next Tuesday works. Confirmed. I'm keen to see the numbers, though I'm always a bit skeptical until I see tangible results.",
+                "Tuesday works for diagnostics. I'm interested in the data, but I need to see actionable insights, not just numbers.",
+                "Confirmed for diagnostics next week. I value data, but ultimately, it's about practical improvements. What should I expect?"
+            ])
         elif "apo b" in prompt_lower or "apob" in prompt_lower:
-            response_text = "What's the plan for the ApoB? I want clear, actionable steps. Monetary factors are important too."
+            response_text = random.choice([
+                "What's the plan for the ApoB? I want clear, actionable steps. Monetary factors are important too.",
+                "Elevated ApoB is a concern. What are the most effective, efficient interventions? Please consider cost-effectiveness.",
+                "Understood on ApoB. Let's prioritize interventions. Are there any cost-efficient alternatives for dietary changes or supplements?"
+            ])
         elif "jet lag" in prompt_lower or "travel" in prompt_lower:
-            response_text = "This sounds critical. I need a clear, minute-by-minute guide for my upcoming trip. How can we make it time-efficient?"
+            response_text = random.choice([
+                "This sounds critical. I need a clear, minute-by-minute guide for my upcoming trip. How can we make it time-efficient?",
+                "My travel schedule is intense. What's the most time-efficient jet lag protocol? I need practical advice for on-the-go.",
+                "Preparing for travel. What are the key strategies to minimize disruption to my health, especially given my limited time?"
+            ])
         elif "not feeling great" in prompt_lower or "illness" in prompt_lower:
-            response_text = "This is a major setback. The board meeting is critical. What's the immediate plan? I need to maximize my recovery output."
+            response_text = random.choice([
+                "This is a major setback. The board meeting is critical. What's the immediate plan? I need to maximize my recovery output.",
+                "Feeling unwell. This is impacting my ability to perform. What's the fastest way to recover without compromising long-term health?",
+                "I'm experiencing symptoms. What's the Elyx protocol for this? I need to get back on track efficiently."
+            ])
         elif "recovery" in prompt_lower and "green" in prompt_lower:
-            response_text = "Good. I feel it. Let's get back to the plan."
+            response_text = random.choice([
+                "Good. I feel it. Let's get back to the plan.",
+                "Excellent. I'm seeing the positive effects. What's the next optimization?",
+                "Great news on recovery. I'm ready for the next challenge."
+            ])
         elif "piano" in prompt_lower:
-            response_text = "I've always wanted to learn piano. From a health and performance perspective, is this a worthwhile use of my time?"
+            response_text = random.choice([
+                "I've always wanted to learn piano. From a health and performance perspective, is this a worthwhile use of my time?",
+                "Considering learning piano. What are the cognitive benefits, and how does it fit into my overall health investment strategy?",
+                "Is piano a good investment for cognitive longevity and stress? What's the commitment like?"
+            ])
         elif "poor digestion" in prompt_lower:
-            response_text = "I'm experiencing poor digestion. Any suggestions that are easy to integrate into my busy schedule?"
+            response_text = random.choice([
+                "I'm experiencing poor digestion. Any suggestions that are easy to integrate into my busy schedule?",
+                "What are some practical dietary adjustments for improving digestion, considering my travel and time constraints?",
+                "My digestion feels off. Are there any simple, effective strategies I can implement immediately?"
+            ])
         elif "monetary" in prompt_lower or "cost" in prompt_lower or "expensive" in prompt_lower:
-            response_text = "I'm looking for cost-effective options. Can you suggest alternatives for X?"
+            response_text = random.choice([
+                "I'm looking for cost-effective options. Can you suggest alternatives for X?",
+                "How can we optimize for value without compromising results? Are there budget-friendly alternatives?",
+                "What's the ROI on this recommendation, and are there less expensive but still effective options?"
+            ])
         elif "time" in prompt_lower or "busy" in prompt_lower or "quick" in prompt_lower:
-            response_text = "I have limited time. What's the most time-efficient way to achieve Y?"
+            response_text = random.choice([
+                "I have limited time. What's the most time-efficient way to achieve Y?",
+                "My schedule is packed. Can we focus on high-impact, low-time-commitment interventions?",
+                "What are some quick wins for health that fit into a demanding schedule?"
+            ])
         else:
             response_text = random.choice([
                 "Understood. Thanks for the update. What's next?",
@@ -111,67 +163,123 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
     else:
         service_interaction_type = "proactive check-in" if "check-in" in prompt_lower else "intervention update"
         if "initial submission" in prompt_lower and role == "Ruby":
-            response_text = "Hi Rohan, thank you for sharing this. We understand. Our goal is to bring coordination to your health. I'm flagging your concerns for Dr. Warren to review immediately. We're here to make this seamless for you."
+            response_text = random.choice([
+                "Hi Rohan, thank you for sharing this. We understand. Our goal is to bring coordination to your health. I'm flagging your concerns for Dr. Warren to review immediately. We're here to make this seamless for you.",
+                "Welcome, Rohan! We've received your initial details. Your concerns about stress and Garmin data are noted. We're initiating a comprehensive review with Dr. Warren to build your coordinated plan.",
+                "Rohan, great to have you onboard! We're already working to consolidate your health data and address your initial concerns about routine and stress. Expect a prompt follow-up from Dr. Warren."
+            ])
             decision_rationale = "Prioritizing Rohan's core concern of 'ad-hoc health' by initiating a coordinated clinical review, maximizing early engagement output."
             time_efficiency = "Immediate flagging for quick initial response."
         elif "medical records" in prompt_lower and role == "Dr. Warren":
-            response_text = "Rohan, Dr. Warren here. I've reviewed your initial submission. The symptoms and data strongly suggest autonomic dysfunction (Pillar 1). To proceed, we must consolidate your complete medical records. This is non-negotiable for safety. Ruby will manage the process."
+            response_text = random.choice([
+                "Rohan, Dr. Warren here. I've reviewed your initial submission. The symptoms and data strongly suggest autonomic dysfunction (Pillar 1). To proceed, we must consolidate your complete medical records. This is non-negotiable for safety. Ruby will manage the process.",
+                "Dr. Warren. Your initial data points towards autonomic imbalance. Full medical records are vital for a safe, effective strategy. Ruby will handle the logistics.",
+                "This is Dr. Warren. To build a robust plan for your autonomic health, complete medical records are essential. Ruby will streamline this process for you."
+            ])
             decision_rationale = "To establish a clinical-grade strategy, ensure safety, and avoid redundant testing by consolidating complete medical history. This is a foundational step for maximizing long-term health output and preventing future costly errors."
             pillar_impact = "Pillar 1 (Autonomic Health)"
         elif "medical records" in prompt_lower and role == "Ruby":
-            response_text = "The timeline can vary depending on clinics' response speed, but we will manage the entire process. We typically aim for records within 2-3 weeks. We'll provide daily updates to keep you in the loop, saving your time."
+            response_text = random.choice([
+                "The timeline can vary depending on clinics' response speed, but we will manage the entire process. We typically aim for records within 2-3 weeks. We'll provide daily updates to keep you in the loop, saving your time.",
+                "We're on it! Consolidating your records is our priority. We'll handle all communication with clinics and keep you updated every step of the way, minimizing your effort.",
+                "Don't worry about the record collection. We'll streamline the process, aiming for completion within 2-3 weeks, and notify you as soon as they're ready. Your time is valuable."
+            ])
             time_efficiency = "Elyx team handles logistics to save Rohan's time."
         elif "fitness goals" in prompt_lower and role == "Advik":
-            response_text = "Rohan, Advik here. A good first step is a comprehensive movement assessment to understand your baseline and identify any imbalances. Ruby can help schedule this with Rachel. This will inform your personalized exercise plan, maximizing your workout output."
+            response_text = random.choice([
+                "Rohan, Advik here. A good first step is a comprehensive movement assessment to understand your baseline and identify any imbalances. Ruby can help schedule this with Rachel. This will inform your personalized exercise plan, maximizing your workout output.",
+                "Advik. To optimize your workouts and prevent injury, a baseline movement assessment is key. Ruby can coordinate with Rachel for this. It's a data-driven approach to maximize your fitness investment.",
+                "For your fitness goals, Advik recommends a detailed movement assessment. This will ensure your personalized plan is efficient and effective, fitting your demanding schedule. Ruby will assist with scheduling."
+            ])
             decision_rationale = "To establish a data-driven baseline for personalized exercise programming, optimizing for Rohan's time constraints and avoiding injury. This maximizes efficiency and adherence for long-term gains."
             pillar_impact = "Pillar 4 (Structural Health)"
         elif "stress levels" in prompt_lower and role == "Carla":
-            response_text = "Rohan, Carla here. For immediate stress support, focus on consistent hydration and mindful eating. Avoiding processed snacks can also help. These are simple, low-cost dietary adjustments that integrate easily."
+            response_text = random.choice([
+                "Rohan, Carla here. For immediate stress support, focus on consistent hydration and mindful eating. Avoiding processed snacks can also help. These are simple, low-cost dietary adjustments that integrate easily.",
+                "Carla. To combat stress and energy dips, prioritize hydration and mindful eating. Small, consistent efforts here yield significant benefits without major lifestyle overhauls or cost.",
+                "For quick stress relief, Carla advises focusing on hydration and making conscious food choices. These are fundamental, zero-cost practices that can make an immediate difference."
+            ])
             pillar_impact = "Pillar 3 (Fuel), Pillar 5 (Stress Resilience)"
             monetary_factor = "Low-cost/no-cost dietary adjustments."
             time_efficiency = "Easy to integrate, minimal time commitment."
         elif "couch stretch" in prompt_lower and role == "Rachel":
-            response_text = "Hi Rohan, Rachel here. Given your frequent travel and desk work, let's try a simple 2-minute 'couch stretch' for your lower back pain. It targets hip flexor tightness. Try it and let me know if it helps. This is a quick, effective intervention."
+            response_text = random.choice([
+                "Hi Rohan, Rachel here. Given your frequent travel and desk work, let's try a simple 2-minute 'couch stretch' for your lower back pain. It targets hip flexor tightness. Try it and let me know if it helps. This is a quick, effective intervention.",
+                "Rachel. For your lower back, the 2-minute couch stretch is highly effective for hip flexor tightness from sitting. Integrate it into your pre-flight or post-desk routine for quick relief.",
+                "Rohan, Rachel here. A quick win for your lower back is the couch stretch. It's only 2 minutes and directly addresses travel-induced tightness. Give it a try; it's a high-impact, low-time investment."
+            ])
             decision_rationale = "To address Rohan's reported lower back pain, a common issue from prolonged sitting during travel, with a time-efficient, non-invasive intervention that integrates into his daily routine for maximum relief."
             pillar_impact = "Pillar 4 (Structural Health)"
             time_efficiency = "2-minute, quick intervention."
         elif "q1 diagnostic panel" in prompt_lower and role == "Ruby":
-            response_text = "Rohan, it's time to schedule your Q1 diagnostic panel. This comprehensive test will give us a baseline for your metabolic and hormonal health. We can arrange a phlebotomist to come to your office. Does next Tuesday morning work? This maximizes your convenience."
+            response_text = random.choice([
+                "Rohan, it's time to schedule your Q1 diagnostic panel. This comprehensive test will give us a baseline for your metabolic and hormonal health. We can arrange a phlebotomist to come to your office. Does next Tuesday morning work? This maximizes your convenience.",
+                "Your quarterly diagnostic is due. This panel is key to tracking your metabolic health. We can send a phlebotomist to your office for ultimate convenience. Let us know your availability next week.",
+                "Time for your Q1 diagnostic panel! This essential data helps us fine-tune your plan. We can schedule a phlebotomist at your office to save your valuable time. What day next week works best?"
+            ])
             decision_rationale = "Full diagnostic test panel every three months is a core program requirement to track progress on biomarkers and identify new areas for intervention. This maximizes long-term health output by providing critical data for personalized adjustments, minimizing future health costs."
             pillar_impact = "Pillar 1 (Autonomic), Pillar 3 (Fuel), Pillar 5 (Stress Resilience)"
             time_efficiency = "Phlebotomist to office for convenience."
         elif "apo b" in prompt_lower and role == "Dr. Warren":
-            response_text = "Rohan, your ApoB is 105 mg/dL. This is elevated and a primary focus for long-term heart disease risk reduction, aligning with your top health goal. Carla will lead dietary interventions (reducing saturated fat, increasing fiber), and Rachel's exercise plan will be critical. We will aggressively target this with lifestyle changes and re-test in Q2."
+            response_text = random.choice([
+                "Rohan, your ApoB is 105 mg/dL. This is elevated and a primary focus for long-term heart disease risk reduction, aligning with your top health goal. Carla will lead dietary interventions (reducing saturated fat, increasing fiber), and Rachel's exercise plan will be critical. We will aggressively target this with lifestyle changes and re-test in Q2.",
+                "Dr. Warren. Your ApoB at 105 mg/dL is a priority. We're launching a targeted intervention led by Carla (diet) and Rachel (exercise) to reduce your cardiovascular risk. This is a crucial investment in your longevity, with re-testing planned.",
+                "Your Q1 diagnostics show elevated ApoB. This is a serious indicator for heart health, directly impacting your primary goal. Our strategy involves aggressive, integrated lifestyle changes via Carla and Rachel, aiming for significant reduction by Q2. This is a high-ROI health investment."
+            ])
             decision_rationale = "Elevated ApoB is a serious cardiovascular risk factor based on Q1 diagnostics. The intervention prioritizes Rohan's top health goal, using integrated lifestyle changes for maximum impact and long-term investment. This approach is more sustainable than medication alone and is a cost-effective preventative measure."
             pillar_impact = "Pillar 3 (Fuel), Pillar 4 (Structural), Pillar 1 (Autonomic)"
             monetary_factor = "Cost-effective preventative measure."
         elif "travel protocol" in prompt_lower and role == "Advik":
-            response_text = "For your Tokyo trip, we'll build a precise light exposure and avoidance schedule to shift your circadian rhythm, and Rachel will find a suitable gym near your hotel. This proactive approach aims to minimize jet lag and maintain your health routine, maximizing your performance during demanding travel."
+            response_text = random.choice([
+                "For your Tokyo trip, we'll build a precise light exposure and avoidance schedule to shift your circadian rhythm, and Rachel will find a suitable gym near your hotel. This proactive approach aims to minimize jet lag and maintain your health routine, maximizing your performance during demanding travel.",
+                "Advik. To ensure your demanding travel doesn't derail your progress, we're implementing a bespoke travel protocol. This includes circadian rhythm adjustment via light exposure and pre-vetted exercise options near your hotel, maximizing your efficiency on the road.",
+                "Your upcoming travel is an opportunity to optimize your resilience. Advik will provide a detailed jet lag protocol and Rachel will identify convenient workout spots, ensuring your health remains a priority even with time constraints."
+            ])
             decision_rationale = "To proactively mitigate the known impact of international travel on Rohan's POTS and overall performance, ensuring his demanding work schedule doesn't derail health progress. Focus on time-efficient, integrated solutions that fit his travel lifestyle, maximizing his output during business trips."
             pillar_impact = "Pillar 1 (Autonomic), Pillar 2 (Sleep), Pillar 4 (Structural), Pillar 5 (Stress Resilience)"
             time_efficiency = "Precise schedule for jet lag, gym finding for efficiency."
         elif "illness" in prompt_lower and role == "Dr. Warren":
-            response_text = "Rohan, the biotelemetry strongly suggests a viral infection. We are initiating the Elyx Sick Day Protocol immediately. You must postpone your board meeting. Your cognitive function will be severely impaired, and you risk a much longer recovery if you push through. Ruby will manage rescheduling."
+            response_text = random.choice([
+                "Rohan, the biotelemetry strongly suggests a viral infection. We are initiating the Elyx Sick Day Protocol immediately. You must postpone your board meeting. Your cognitive function will be severely impaired, and you risk a much longer recovery if you push through. Ruby will manage rescheduling.",
+                "Dr. Warren here. Your current biometrics indicate a significant viral load. It's critical you engage the Elyx Sick Day Protocol and postpone your meeting. Pushing through will severely extend recovery and compromise your long-term health investment. Ruby will assist.",
+                "This is Dr. Warren. Immediate rest and the Elyx Sick Day Protocol are paramount. Your current state demands full recovery focus; attempting the board meeting will be counterproductive and costly in the long run. Ruby is on standby for logistics."
+            ])
             decision_rationale = "Prioritizing immediate health stabilization and long-term recovery over short-term business commitments, as pushing through illness risks severe setbacks and prolonged recovery, ultimately impacting long-term performance and health investment. This maximizes long-term output and avoids higher future medical costs."
             pillar_impact = "All Pillars (Acute Health Crisis)"
             monetary_factor = "Avoids higher future medical costs."
         elif "piano" in prompt_lower and role == "Neel":
-            response_text = "We agree. Learning piano is an excellent intervention for cognitive longevity, engaging multiple brain domains. We will add 'Weekly Piano Practice' as a trackable goal within Pillar 5 (Stress Management) of your Plan. This integrates a personal interest with health investment and offers a non-monetary health benefit."
+            response_text = random.choice([
+                "We agree. Learning piano is an excellent intervention for cognitive longevity, engaging multiple brain domains. We will add 'Weekly Piano Practice' as a trackable goal within Pillar 5 (Stress Management) of your Plan. This integrates a personal interest with health investment and offers a non-monetary health benefit.",
+                "Neel. Incorporating piano practice is a brilliant idea for cognitive health and stress. We'll formalize 'Weekly Piano Practice' as a trackable goal in Pillar 5. It's a high-value, non-monetary investment that integrates seamlessly.",
+                "Absolutely, Rohan. Piano practice is a fantastic, personalized approach to cognitive longevity and stress resilience. We'll add it to Pillar 5, allowing you to track its impact on your HRV and focus. A truly holistic health investment."
+            ])
             decision_rationale = "To align with Rohan's interest in cognitive longevity and stress management, providing a personalized, engaging, and long-term health investment that integrates naturally into his lifestyle and offers a non-monetary benefit, maximizing his personal growth output."
             pillar_impact = "Pillar 5 (Stress Resilience), Cognitive Health"
             monetary_factor = "Non-monetary health benefit."
             time_efficiency = "Integrated into weekly routine."
         elif "deviate from exercise" in prompt_lower:
-            response_text = "Understood, Rohan. It's common for plans to need adjustments. Let's adapt. We can explore shorter, more flexible routines for your travel weeks, or bodyweight alternatives that require no equipment, maximizing adherence even when time is tight. Your health journey is dynamic."
+            response_text = random.choice([
+                "Understood, Rohan. It's common for plans to need adjustments. Let's adapt. We can explore shorter, more flexible routines for your travel weeks, or bodyweight alternatives that require no equipment, maximizing adherence even when time is tight. Your health journey is dynamic.",
+                "Rachel/Advik here. We understand adherence can fluctuate. Instead of skipping, let's pivot to a quick 15-minute bodyweight circuit or a targeted mobility flow. The goal is consistency and adaptability, maximizing your output even on challenging days.",
+                "It's okay to deviate; the key is quick adaptation. We'll revise your plan to include more flexible, time-efficient options that fit your dynamic schedule, ensuring you maintain momentum without feeling overwhelmed. This maximizes long-term adherence."
+            ])
             decision_rationale = "Adapting to Rohan's dynamic schedule and adherence patterns to ensure continued progress, focusing on flexible and time-efficient alternatives to maximize health output without feeling forced."
             monetary_factor = "Suggests bodyweight alternatives (cost-effective)."
             time_efficiency = "Shorter, more flexible routines."
         elif "monetary concern" in prompt_lower:
-            response_text = "We hear your concern about monetary factors. We always strive to provide cost-effective alternatives and ensure every recommendation is a justified investment in your long-term health. For example, simple dietary changes can have a huge impact on ApoB without high cost."
+            response_text = random.choice([
+                "We hear your concern about monetary factors. We always strive to provide cost-effective alternatives and ensure every recommendation is a justified investment in your long-term health. For example, simple dietary changes can have a huge impact on ApoB without high cost.",
+                "Elyx is about maximizing health ROI. We'll always present cost-effective alternatives and clearly articulate the long-term value of any investment, ensuring your plan is sustainable and delivers maximum output within your budget.",
+                "Your financial considerations are important. We focus on high-impact, low-cost interventions where possible, and for any investment, we'll outline the long-term health benefits and how it prevents future, higher costs."
+            ])
             decision_rationale = "Prioritizing Rohan's financial considerations by offering cost-effective alternatives and justifying investments as long-term health benefits, ensuring the plan is sustainable and maximizes value."
             monetary_factor = "Emphasizes cost-effectiveness and justified investment."
         elif "time" in prompt_lower or "busy" in prompt_lower or "quick" in prompt_lower:
-            response_text = "We understand your time constraints. Our goal is to seamlessly integrate health into your busy life. We can focus on micro-interventions, like 5-minute mobility breaks or strategic meal prepping with Javier, to maximize health output with minimal time investment."
+            response_text = random.choice([
+                "We understand your time constraints. Our goal is to seamlessly integrate health into your busy life. We can focus on micro-interventions, like 5-minute mobility breaks or strategic meal prepping with Javier, to maximize health output with minimal time investment.",
+                "Your time is precious. We design interventions for maximum impact in minimal time. Think strategic 10-minute bursts, or leveraging your cook for efficient meal prep, turning health into an integrated lifestyle, not a chore.",
+                "We specialize in optimizing for busy schedules. We'll streamline your health activities, focusing on high-leverage actions that fit into your existing routine, ensuring consistent progress without adding burden."
+            ])
             decision_rationale = "Adapting the plan to Rohan's severe time constraints by focusing on micro-interventions and efficient strategies, ensuring health activities are integrated seamlessly and maximize output per minute invested."
             time_efficiency = "Focus on micro-interventions and strategic planning."
         else:
