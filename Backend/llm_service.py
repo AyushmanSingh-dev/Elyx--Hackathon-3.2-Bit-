@@ -414,35 +414,19 @@ def api_generate_journey():
 
     # Initial onboarding
     rohan_msg, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist, rohan_next_steps = generate_llm_response("Rohan", "Initial onboarding: I need a proper, coordinated plan. My Garmin HR seems off.", CURRENT_HEALTH_METRICS, chat_history, journey_data)
-    journey_data.append({
-        "type": "message", "sender": "Rohan", "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
-        "content": rohan_msg, "pillar": rohan_pillar, "relatedTo": "Initial onboarding",
-        "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
-        "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
-        "timeEfficiency": rohan_time, "serviceInteractionType": rohan_interaction_type,
-        "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
-    })
+    # Add Rohan's initial message to chat history, but not journey_data yet (it's part of onboarding event)
     chat_history.append({"role": "user", "parts": [{"text": rohan_msg}]})
 
     ruby_msg, ruby_rationale, ruby_pillar, ruby_metrics, ruby_effect, ruby_monetary, ruby_time, ruby_interaction_type, ruby_specialist, ruby_next_steps = generate_llm_response("Ruby", "welcome Rohan and acknowledge concerns", CURRENT_HEALTH_METRICS, chat_history, journey_data)
-    journey_data.append({
-        "type": "message", "sender": "Ruby", "timestamp": (current_date + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M"),
-        "content": ruby_msg, "pillar": ruby_pillar, "relatedTo": "Rohan_Initial",
-        "decisionRationale": ruby_rationale, "healthMetricsSnapshot": ruby_metrics,
-        "interventionEffect": ruby_effect, "monetaryFactor": ruby_monetary,
-        "timeEfficiency": ruby_time, "serviceInteractionType": ruby_interaction_type,
-        "specialistInvolved": ruby_specialist, "nextSteps": ruby_next_steps
-    })
     chat_history.append({"role": "model", "parts": [{"text": ruby_msg}]})
     
-    # Only add major events/messages to the 'journey_data' list for the timeline
-    # General messages will only be in chat_history for /api/explain-decision context
+    # Onboarding event (includes Rohan's initial message and Ruby's welcome)
     journey_data.append({
         "type": "event", "eventId": "onboarding_start", "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
-        "description": "Member Onboarding Initiated", "details": "Rohan shares medical history and goals.",
+        "description": "Member Onboarding Initiated", "details": f"Rohan's initial concern: '{rohan_msg}' | Ruby's welcome: '{ruby_msg}'", # Combine initial messages here
         "decisionRationale": "Standard Elyx onboarding process to establish baseline and goals for a personalized plan.",
         "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(), "interventionEffect": None,
-        "monetaryFactor": None, "timeEfficiency": None, "serviceInteractionType": "onboarding_event", # Changed to event type
+        "monetaryFactor": None, "timeEfficiency": None, "serviceInteractionType": "onboarding_event", 
         "specialistInvolved": "Elyx Team", "nextSteps": "Complete medical record consolidation and initial assessments."
     })
 
@@ -462,7 +446,7 @@ def api_generate_journey():
                 "content": msg, "pillar": pillar, "relatedTo": "Previous interactions",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
-                "timeEfficiency": time_eff, "serviceInteractionType": "proactive check-in", # Explicit type
+                "timeEfficiency": time_eff, "serviceInteractionType": "proactive check-in", 
                 "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
@@ -474,7 +458,7 @@ def api_generate_journey():
                 "content": rohan_response, "pillar": rohan_pillar, "relatedTo": "Monthly check-in",
                 "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                 "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
-                "timeEfficiency": rohan_time, "serviceInteractionType": "member-initiated query", # Explicit type
+                "timeEfficiency": rohan_time, "serviceInteractionType": "member-initiated query", 
                 "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
             })
             chat_history.append({"role": "user", "parts": [{"text": rohan_response}]})
@@ -491,7 +475,7 @@ def api_generate_journey():
                 "content": msg, "pillar": pillar, "relatedTo": "Program requirement",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
-                "timeEfficiency": time_eff, "serviceInteractionType": "diagnostic_scheduling", # Explicit type
+                "timeEfficiency": time_eff, "serviceInteractionType": "diagnostic_scheduling", 
                 "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
@@ -503,7 +487,7 @@ def api_generate_journey():
                 "content": rohan_response, "pillar": rohan_pillar, "relatedTo": "Diagnostic scheduling",
                 "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                 "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
-                "timeEfficiency": rohan_time, "serviceInteractionType": "member-initiated query", # Explicit type
+                "timeEfficiency": rohan_time, "serviceInteractionType": "member-initiated query", 
                 "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
             })
             chat_history.append({"role": "user", "parts": [{"text": rohan_response}]})
@@ -514,8 +498,8 @@ def api_generate_journey():
                 "description": f"Quarterly Diagnostic Panel Scheduled (Week {week})",
                 "details": "Comprehensive baseline tests for metabolic and hormonal health.",
                 "decisionRationale": rationale, "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(),
-                "interventionEffect": None, "monetaryFactor": monetary, "timeEfficiency": time_eff,
-                "serviceInteractionType": "diagnostic_scheduling_event", # Explicit event type
+                "interventionEffect": None, "monetaryFactor": None, "timeEfficiency": None,
+                "serviceInteractionType": "diagnostic_scheduling_event", 
                 "specialistInvolved": "Ruby", "nextSteps": "Complete diagnostic tests."
             })
 
@@ -535,7 +519,7 @@ def api_generate_journey():
                     "content": msg, "pillar": pillar, "relatedTo": "Q1 Diagnostics",
                     "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                     "interventionEffect": effect, "monetaryFactor": monetary,
-                    "timeEfficiency": time_eff, "serviceInteractionType": "diagnostic_results_review", # Explicit type
+                    "timeEfficiency": time_eff, "serviceInteractionType": "diagnostic_results_review", 
                     "specialistInvolved": specialist, "nextSteps": next_steps_team
                 })
                 chat_history.append({"role": "model", "parts": [{"text": msg}]})
@@ -547,7 +531,7 @@ def api_generate_journey():
                     "content": rohan_response, "pillar": rohan_pillar, "relatedTo": "ApoB discussion",
                     "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                     "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
-                    "timeEfficiency": rohan_time, "serviceInteractionType": "member-initiated query", # Explicit type
+                    "timeEfficiency": rohan_time, "serviceInteractionType": "member-initiated query", 
                     "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
                 })
                 chat_history.append({"role": "user", "parts": [{"text": rohan_response}]})
@@ -558,7 +542,7 @@ def api_generate_journey():
                     "decisionRationale": rationale, "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(),
                     "interventionEffect": "ApoB elevated, focus shifted to metabolic health.",
                     "monetaryFactor": "Preventative measures to avoid future high costs.", "timeEfficiency": "Efficient diagnosis.",
-                    "serviceInteractionType": "diagnostic_review_event", # Explicit event type
+                    "serviceInteractionType": "diagnostic_review_event", 
                     "specialistInvolved": "Dr. Warren",
                     "nextSteps": "Implement dietary changes via Carla and exercise adjustments via Rachel; re-test in Q2."
                 })
@@ -578,7 +562,7 @@ def api_generate_journey():
                     "content": msg, "pillar": pillar, "relatedTo": "Q2 Diagnostics",
                     "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                     "interventionEffect": effect, "monetaryFactor": monetary,
-                    "timeEfficiency": time_eff, "serviceInteractionType": "diagnostic_results_review", # Explicit type
+                    "timeEfficiency": time_eff, "serviceInteractionType": "diagnostic_results_review", 
                     "specialistInvolved": specialist, "nextSteps": next_steps_team
                 })
                 chat_history.append({"role": "model", "parts": [{"text": msg}]})
@@ -590,7 +574,7 @@ def api_generate_journey():
                     "content": rohan_response, "pillar": rohan_pillar, "relatedTo": "ApoB discussion",
                     "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                     "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
-                    "timeEfficiency": rohan_time, "serviceInteractionType": "member-initiated query", # Explicit type
+                    "timeEfficiency": rohan_time, "serviceInteractionType": "member-initiated query", 
                     "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
                 })
                 chat_history.append({"role": "user", "parts": [{"text": rohan_response}]})
@@ -601,7 +585,7 @@ def api_generate_journey():
                     "decisionRationale": rationale, "healthMetricsSnapshot": CURRENT_HEALTH_METRICS.copy(),
                     "interventionEffect": "ApoB significantly improved, HRV increased, POTS symptoms mild.",
                     "monetaryFactor": "Positive ROI on health investment.", "timeEfficiency": "Efficient progress.",
-                    "serviceInteractionType": "diagnostic_review_event", # Explicit event type
+                    "serviceInteractionType": "diagnostic_review_event", 
                     "specialistInvolved": "Dr. Warren",
                     "nextSteps": "Continue current plan; focus on maintenance and further optimization."
                 })
@@ -618,7 +602,7 @@ def api_generate_journey():
                 "content": msg, "pillar": pillar, "relatedTo": "Exercise progress",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
-                "timeEfficiency": time_eff, "serviceInteractionType": "exercise_update", # Explicit type
+                "timeEfficiency": time_eff, "serviceInteractionType": "exercise_update", 
                 "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
@@ -632,7 +616,7 @@ def api_generate_journey():
                     "content": rohan_deviation, "pillar": rohan_pillar, "relatedTo": "Exercise deviation",
                     "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                     "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
-                    "timeEfficiency": rohan_time, "serviceInteractionType": "member-initiated query", # Explicit type
+                    "timeEfficiency": rohan_time, "serviceInteractionType": "member_adherence_report", 
                     "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
                 })
                 chat_history.append({"role": "user", "parts": [{"text": rohan_deviation}]})
@@ -645,7 +629,7 @@ def api_generate_journey():
                     "content": adapt_msg, "pillar": adapt_pillar, "relatedTo": "Adaptation",
                     "decisionRationale": adapt_rationale, "healthMetricsSnapshot": adapt_metrics,
                     "interventionEffect": adapt_effect, "monetaryFactor": adapt_monetary,
-                    "timeEfficiency": adapt_time, "serviceInteractionType": "plan_adaptation", # Explicit type
+                    "timeEfficiency": adapt_time, "serviceInteractionType": "plan_adaptation", 
                     "specialistInvolved": adapt_specialist, "nextSteps": adapt_next_steps
                 })
                 chat_history.append({"role": "model", "parts": [{"text": adapt_msg}]})
@@ -658,7 +642,7 @@ def api_generate_journey():
                     "content": rohan_adherence, "pillar": rohan_pillar, "relatedTo": "Exercise adherence",
                     "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                     "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
-                    "timeEfficiency": rohan_time, "serviceInteractionType": "member_adherence_report", # Explicit type
+                    "timeEfficiency": rohan_time, "serviceInteractionType": "member_adherence_report", 
                     "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps
                 })
                 chat_history.append({"role": "user", "parts": [{"text": rohan_adherence}]})
@@ -680,7 +664,7 @@ def api_generate_journey():
                 "content": msg, "pillar": pillar, "relatedTo": "Travel",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
-                "timeEfficiency": time_eff, "serviceInteractionType": "travel_protocol_prep", # Explicit type
+                "timeEfficiency": time_eff, "serviceInteractionType": "travel_protocol_prep", 
                 "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
@@ -693,7 +677,7 @@ def api_generate_journey():
                 "content": msg, "pillar": pillar, "relatedTo": "Travel",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
-                "timeEfficiency": time_eff, "serviceInteractionType": "travel_logistics", # Explicit type
+                "timeEfficiency": time_eff, "serviceInteractionType": "travel_logistics", 
                 "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
@@ -718,7 +702,7 @@ def api_generate_journey():
                 "content": msg, "pillar": pillar, "relatedTo": "Post-travel recovery",
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
-                "timeEfficiency": time_eff, "serviceInteractionType": "post_travel_check_in", # Explicit type
+                "timeEfficiency": time_eff, "serviceInteractionType": "post_travel_check_in", 
                 "specialistInvolved": specialist, "nextSteps": next_steps_team
             })
             chat_history.append({"role": "model", "parts": [{"text": msg}]})
@@ -763,22 +747,13 @@ def api_generate_journey():
                 
                 rohan_response, rohan_rationale, rohan_pillar, rohan_metrics, rohan_effect, rohan_monetary, rohan_time, rohan_interaction_type, rohan_specialist, rohan_next_steps = generate_llm_response("Rohan", rohan_query, CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 
-                # Only add Rohan's queries to journey_data if they are significant or trigger a new event
-                # For now, we'll keep them out of journey_data to keep it concise, but they are in chat_history
-                # If a query leads to a new "event" (handled by explicit 'if week == X' blocks), that event will be added.
-                
+                # Rohan's general queries are NOT added to journey_data to keep it concise.
                 chat_history.append({"role": "user", "parts": [{"text": rohan_query}]})
                 
                 team_member = random.choice(list(ELYX_TEAM_PERSONAS.keys()))
                 response_to_query, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team = generate_llm_response(team_member, f"respond to Rohan's query about {chosen_topic}. Current state: {CURRENT_HEALTH_METRICS}", CURRENT_HEALTH_METRICS, chat_history, journey_data)
                 
-                # Only add Elyx team's responses to journey_data if they are significant (e.g., advice, plan change)
-                # For now, general responses to queries are kept out of journey_data to keep it concise.
-                # If the response text contains key phrases indicating advice or a plan change, you could add it here.
-                # Example:
-                # if any(phrase in response_to_query.lower() for phrase in ["recommend", "suggest", "plan change", "adapt"]):
-                #    journey_data.append({ ... message details ... })
-                
+                # Elyx team's responses to general queries are NOT added to journey_data to keep it concise.
                 chat_history.append({"role": "model", "parts": [{"text": response_to_query}]})
                 
                 # Simulate metric changes based on interventions/deviations (simplified)
