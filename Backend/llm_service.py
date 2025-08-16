@@ -701,8 +701,9 @@ def api_generate_journey():
                 ROHAN_ASKED_TOPICS.add(chosen_topic) # Add chosen topic to memory
 
                 # Select a specific question for that topic, avoiding recent exact duplicates
-                # Check last 5 messages in chat_history to avoid immediate repetition of exact text
-                available_questions_for_topic = [q for q in query_pool[chosen_topic] if q not in [msg['content'] for msg in chat_history[-5:] if msg['role'] == 'user']]
+                # FIXED: Ensure msg['parts'][0]['text'] is used for content check in chat_history
+                recent_user_messages_content = [msg['parts'][0]['text'] for msg in chat_history[-5:] if msg['role'] == 'user' and 'parts' in msg and len(msg['parts']) > 0 and 'text' in msg['parts'][0]]
+                available_questions_for_topic = [q for q in query_pool[chosen_topic] if q not in recent_user_messages_content]
                 if not available_questions_for_topic:
                     available_questions_for_topic = query_pool[chosen_topic] # Reset if all questions for topic are recent
                 
@@ -873,3 +874,4 @@ def api_explain_decision():
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG') == '1', host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
