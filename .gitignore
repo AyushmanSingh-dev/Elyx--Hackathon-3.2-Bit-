@@ -1,0 +1,10 @@
+# Node.js
+node_modules/
+.env
+build/
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
