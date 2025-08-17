@@ -5,8 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Elyx Health Journey</title>
 
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Chart.js CDN (kept in head, but its canvas elements are removed from Journey section) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         /* Global styles and custom spinner for loading indicators */
@@ -28,26 +32,65 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Chat-specific styles */
+        #chat-box {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-bubble {
+            margin: 6px;
+            padding: 10px;
+            border-radius: 10px;
+            color: white;
+            max-width: 70%;
+            word-wrap: break-word; /* Ensure long words wrap */
+        }
+
+        /* Sentiment-based bubble colors */
+        .bubble-angry { background: #e74c3c; }    /* red */
+        .bubble-sad { background: #3498db; }      /* blue */
+        .bubble-curious { background: #f1c40f; }  /* yellow */
+        .bubble-neutral { background: #2ecc71; }  /* green */
+        .bubble-authoritative { background: #8e44ad; } /* purple */
+        .bubble-positive { background: #27ae60; } /* dark green */
+        .bubble-user { background: #3498db; align-self: flex-end; } /* user messages, blue */
+        .bubble-elyx { background: #6366f1; align-self: flex-start; } /* elyx messages, indigo */
+        /* Custom colors for specific Elyx personas if needed, matching backend */
+        .bubble-analytical { background: #9b59b6; } /* a shade of purple */
+        .bubble-practical { background: #e67e22; } /* a shade of orange */
+        .bubble-direct { background: #c0392b; } /* a darker red/brown */
     </style>
 </head>
 <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
 
+    <!-- React and ReactDOM CDNs -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
+    <!-- Firebase CDNs (for authentication). Ensure these are loaded before your app script. -->
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <!-- Add other Firebase services if needed, e.g., Firestore: -->
+    <!-- <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script> -->
 
     <script type="module">
         // Access React from global scope
-        const { useState, useEffect, useCallback } = window.React;
+        const { useState, useEffect, useCallback, useRef } = window.React;
         const ReactDOM = window.ReactDOM;
+        const Chart = window.Chart; // Access Chart.js from global scope
 
-        // --- NavItem Component ---
+        // --- NavItem Component (defined locally within this script) ---
         const NavItem = ({ label, section, activeSection, setActiveSection }) => {
-            const React = window.React;
+            const React = window.React; // Access React from global scope
             return (
                 React.createElement('button', {
                     className: `px-4 py-2 rounded-md text-white font-medium transition-colors duration-300 ${activeSection === section ? 'bg-indigo-600 shadow-lg' : 'hover:bg-indigo-700'}`,
@@ -55,6 +98,15 @@
                 }, label)
             );
         };
+
+        // --- Sample Journey Data (Embedded) ---
+        // This data is now defined directly within this script, no import needed.
+        // This acts as a fallback or initial data if the backend fetch fails.
+        const sampleJourneyData = [
+            { type: "message", sender: "Rohan", timestamp: "2025-08-01 10:00", content: "Initial message content...", pillar: null, relatedTo: null, decisionRationale: "Initial onboarding message.", healthMetricsSnapshot: { HRV: 45, ApoB: 105, GlucoseAvg: 95, RestingHR: 60, RecoveryScore: 70, DeepSleep: 60, POTS_symptoms: "moderate", BackPain: "mild" }, interventionEffect: null, monetaryFactor: null, timeEfficiency: null, serviceInteractionType: "onboarding", specialistInvolved: null, nextSteps: "Complete initial assessments.", sentiment: "neutral" },
+            { type: "event", eventId: "sample_event_1", timestamp: "2025-08-05 12:00", description: "Sample Event: Initial Assessment Complete", details: "Baseline health data collected.", decisionRationale: "Standard procedure to establish health baseline.", healthMetricsSnapshot: { HRV: 50, ApoB: 90, GlucoseAvg: 92, RestingHR: 58, RecoveryScore: 75, DeepSleep: 65, POTS_symptoms: "mild", BackPain: "mild" }, interventionEffect: "Data collected successfully.", monetaryFactor: "Covered by plan.", timeEfficiency: "Efficient process.", pillar: "General", nextSteps: "Review results with Dr. Warren." },
+            { type: "message", sender: "Dr. Warren", timestamp: "2025-08-10 09:00", content: "Sample advice from Dr. Warren: Focus on hydration and light walks.", pillar: "Pillar 3", relatedTo: "Sample concern", decisionRationale: "Sample medical advice rationale for initial stress.", healthMetricsSnapshot: { HRV: 55, ApoB: 85, GlucoseAvg: 90, RestingHR: 57, RecoveryScore: 80, DeepSleep: 70, POTS_symptoms: "mild", BackPain: "none" }, interventionEffect: "Partially effective", monetaryFactor: "Low cost", timeEfficiency: "Quick integration", specialistInvolved: "Dr. Warren", nextSteps: "Monitor hydration, report subjective stress.", sentiment: "authoritative" }
+        ];
 
         // --- Main App Component ---
         function App() {
@@ -65,65 +117,142 @@
             const [decisionResponse, setDecisionResponse] = useState('');
             const [isLoadingDecision, setIsLoadingDecision] = useState(false);
             const [journeyData, setJourneyData] = useState([]);
-            const [isLoading, setIsLoading] = useState(true);
-            const [error, setError] = useState(null);
+            const [isGeneratingConversation, setIsGeneratingConversation] = useState(true); // Initially true to show loading
+            const [chatMessages, setChatMessages] = useState([]); // New state for chat messages in Messages tab
+            const chatBoxRef = useRef(null); // Ref for auto-scrolling chat box
 
-            // IMPORTANT: Replace this with YOUR ACTUAL BACKEND URL if deployed
-            const BACKEND_API_URL = "http://127.0.0.1:5001";
+            // Refs for Chart.js canvas elements (no longer used for primary visualization in Journey)
+            const hrvChartRef = useRef(null);
+            const apoBChartRef = useRef(null);
+            const interactionChartRef = useRef(null);
 
-            // --- DATA FETCHING LOGIC ---
-            // This function replaces the old static data
+            // IMPORTANT: Updated to your specific Render Backend URL
+            const BACKEND_API_BASE_URL = "https://elyx-hackathon-3-2-bit.onrender.com"; 
+
+            // Function to fetch the 8-month journey data from the backend
             const fetchJourneyData = useCallback(async () => {
-                setIsLoading(true);
-                setError(null);
+                setIsGeneratingConversation(true);
                 try {
-                    const response = await fetch(`${BACKEND_API_URL}/api/journey`);
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}. Is the backend server running?`);
-                    }
+                    const response = await fetch(`${BACKEND_API_BASE_URL}/api/generate-journey`, {
+                        method: 'POST', // Use POST as the backend expects it
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({}) // Send empty body if no specific input is needed for generation
+                    });
                     const data = await response.json();
-                    setJourneyData(data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)));
-                } catch (err) {
-                    setError(err.message);
-                    setJourneyData([]);
+                    if (response.ok) {
+                        setJourneyData(data);
+                        // Populate chatMessages with all messages from the generated journey
+                        setChatMessages(data.filter(item => item.type === 'message'));
+                    } else {
+                        console.error("Error fetching journey data:", data.error || "Unknown error");
+                        setJourneyData(sampleJourneyData); // Fallback to sample data on error
+                        setChatMessages(sampleJourneyData.filter(item => item.type === 'message'));
+                    }
+                } catch (error) {
+                    console.error("Network error fetching journey data:", error);
+                    setJourneyData(sampleJourneyData); // Fallback to sample data on network error
+                    setChatMessages(sampleJourneyData.filter(item => item.type === 'message'));
                 } finally {
-                    setIsLoading(false);
+                    setIsGeneratingConversation(false);
                 }
-            }, []);
+            }, [BACKEND_API_BASE_URL]); // Depend on BACKEND_API_BASE_URL
 
+            // Function to handle sending messages in the chat interface
+            const sendMessage = async (currentChatInput) => {
+                if (!currentChatInput.trim()) return;
+
+                const userMessage = {
+                    sender: "Rohan",
+                    content: currentChatInput,
+                    timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '), // Current timestamp
+                    sentiment: "neutral" // Default sentiment for user input
+                };
+                setChatMessages(prevMessages => [...prevMessages, userMessage]);
+                // Clear the input field (handled by state management if input is controlled)
+
+                // Prepare chat history for backend (only content and role)
+                const chatHistoryForBackend = chatMessages.map(msg => ({
+                    role: msg.sender === "Rohan" ? "user" : "model",
+                    parts: [{ text: msg.content }]
+                }));
+                chatHistoryForBackend.push({ role: "user", parts: [{ text: userMessage.content }] }); // Add current user message
+
+                try {
+                    const response = await fetch(`${BACKEND_API_BASE_URL}/api/generate-message`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ prompt: userMessage.content, chatHistory: chatHistoryForBackend })
+                    });
+                    const data = await response.json();
+                    const botMessageContent = data.message || "⚠️ Error: No response";
+                    const botSentiment = data.sentiment || "neutral"; 
+
+                    const newBotMessage = {
+                        sender: "Elyx", // Assuming bot is "Elyx"
+                        content: botMessageContent,
+                        timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                        sentiment: botSentiment
+                    };
+                    setChatMessages(prevMessages => [...prevMessages, newBotMessage]);
+                } catch (err) {
+                    console.error("Chat API error:", err);
+                    setChatMessages(prevMessages => [...prevMessages, {
+                        sender: "Elyx",
+                        content: "⚠️ Failed to reach AI backend.",
+                        timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                        sentiment: "sad"
+                    }]);
+                }
+            };
+
+            // Function to call the backend API for decision explanation
             const handleDecisionQuery = async () => {
                 if (!decisionQuery.trim()) {
                     setDecisionResponse("Please enter a question about a decision.");
                     return;
                 }
+
                 setIsLoadingDecision(true);
                 setDecisionResponse("Thinking...");
+
                 try {
-                    const response = await fetch(`${BACKEND_API_URL}/api/explain-decision`, {
+                    const response = await fetch(`${BACKEND_API_BASE_URL}/api/explain-decision`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
                         body: JSON.stringify({ query: decisionQuery, journeyData: journeyData }),
                     });
+
                     const data = await response.json();
+
                     if (response.ok) {
                         setDecisionResponse(data.explanation);
                     } else {
                         setDecisionResponse(`Error from backend: ${data.error || 'Unknown error'}`);
+                        console.error("Backend error response:", data);
                     }
+
                 } catch (error) {
-                    setDecisionResponse("An error occurred. Please ensure the backend is running.");
+                    console.error("Error calling backend API:", error);
+                    setDecisionResponse("An error occurred while connecting to the backend. Please ensure the backend is running and the URL is correct.");
                 } finally {
                     setIsLoadingDecision(false);
                 }
             };
 
+            // Auto-scroll chat box when messages update
             useEffect(() => {
-                // Fetch data when component mounts
-                fetchJourneyData();
+                if (chatBoxRef.current) {
+                    chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+                }
+            }, [chatMessages]);
 
-                // Firebase initialization and authentication (from your original code)
+
+            // Initial load and Firebase setup
+            useEffect(() => {
                 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
 
                 if (firebaseConfig && window.firebase && window.firebase.auth) {
                     const { initializeApp } = window.firebase;
@@ -153,57 +282,68 @@
                     setUserId('mock-user-id-' + Math.random().toString(36).substring(2, 9));
                     setIsAuthReady(true);
                 }
-            }, [fetchJourneyData]);
+
+                // Fetch journey data when component mounts
+                fetchJourneyData();
+            }, [fetchJourneyData]); // Add fetchJourneyData to dependency array
+
+            // --- Helper function for effectiveness class ---
+            const getEffectivenessClass = (effect) => {
+                if (!effect) return '';
+                const lowerEffect = effect.toLowerCase();
+                if (lowerEffect.includes('improved') || lowerEffect.includes('relief') || lowerEffect.includes('positive') || lowerEffect.includes('effective')) return 'text-green-600 font-semibold';
+                if (lowerEffect.includes('elevated') || lowerEffect.includes('dropped') || lowerEffect.includes('severe') || lowerEffect.includes('ineffective')) return 'text-red-600 font-semibold';
+                return 'text-yellow-600 font-semibold'; // Partially effective or stable
+            };
 
             const renderContent = () => {
-                if (isLoading) {
-                    return React.createElement('div', { className: 'text-center p-10' },
-                        React.createElement('div', { className: 'spinner' }),
-                        React.createElement('p', { className: 'text-lg text-gray-600 mt-4' }, 'Generating Health Journey...')
-                    );
-                }
-                if (error) {
-                    return React.createElement('div', { className: 'bg-red-100 border-l-4 border-red-500 text-red-700 p-4 m-4 rounded shadow-lg', role: 'alert' },
-                        React.createElement('p', { className: 'font-bold' }, 'Error Fetching Data'),
-                        React.createElement('p', null, error)
-                    );
-                }
-
                 switch (activeSection) {
                     case 'dashboard':
-                        const recentMessages = journeyData.filter(item => item.type === 'message').slice(-3).reverse();
-                        const latestMetricsData = journeyData.length > 0 ? journeyData[journeyData.length - 1].healthMetricsSnapshot : {};
-                        const latestMetrics = {
-                            hrv: { value: latestMetricsData?.HRV || "N/A" },
-                            restingHR: { value: latestMetricsData?.RestingHR || "N/A" },
-                            apoB: { value: latestMetricsData?.ApoB || "N/A" },
-                        };
+                        const recentMessages = chatMessages.slice(-3).reverse(); // Use chatMessages for recent messages
+                        // Ensure latestMetrics is always an object, even if journeyData is empty
+                        const latestMetrics = journeyData.length > 0 && journeyData[journeyData.length - 1].healthMetricsSnapshot 
+                                             ? journeyData[journeyData.length - 1].healthMetricsSnapshot 
+                                             : { HRV: "N/A", RestingHR: "N/A", GlucoseAvg: "N/A", ApoB: "N/A", RecoveryScore: "N/A", DeepSleep: "N/A", POTS_symptoms: "N/A", BackPain: "N/A" };
                         return (
                             React.createElement('div', { className: "p-6 text-gray-700" },
                                 React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Welcome, Rohan!"),
-                                React.createElement('p', { className: "text-lg mb-4" }, "This is your personalized health dashboard."),
+                                React.createElement('p', { className: "text-lg mb-4" }, "This is your personalized health dashboard. Here, you'll find an overview of your progress, key metrics, and upcoming activities."),
                                 React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" },
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
                                         React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Current Health Snapshot"),
                                         React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600" },
-                                            React.createElement('li', null, "HRV: ", React.createElement('span', { className: "font-semibold text-green-600" }, `${latestMetrics.hrv.value} ms`)),
-                                            React.createElement('li', null, "Resting HR: ", React.createElement('span', { className: "font-semibold text-green-600" }, `${latestMetrics.restingHR.value} bpm`)),
-                                            React.createElement('li', null, "ApoB: ", React.createElement('span', { className: "font-semibold text-green-600" }, `${latestMetrics.apoB} mg/dL`))
-                                        )
+                                            React.createElement('li', null, "HRV: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.HRV, "ms")),
+                                            React.createElement('li', null, "Resting HR: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.RestingHR, "bpm")),
+                                            React.createElement('li', null, "Glucose Avg: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.GlucoseAvg, "mg/dL")),
+                                            React.createElement('li', null, "ApoB: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.ApoB, "mg/dL")),
+                                            React.createElement('li', null, "Recovery: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.RecoveryScore, "%")),
+                                            React.createElement('li', null, "Deep Sleep: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.DeepSleep, "min")),
+                                            React.createElement('li', null, "POTS Symptoms: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.POTS_symptoms)),
+                                            React.createElement('li', null, "Back Pain: ", React.createElement('span', { className: "font-semibold text-green-600" }, latestMetrics.BackPain))
+                                        ),
+                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, "Last updated: ", journeyData.length > 0 ? journeyData[journeyData.length - 1].timestamp.split(' ')[0] : 'N/A')
                                     ),
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
                                         React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Upcoming Activities"),
-                                         React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600" },
-                                            React.createElement('li', null, "Quarterly Diagnostic Panel"),
-                                            React.createElement('li', null, "Bi-weekly Exercise Plan Update"),
-                                            React.createElement('li', null, "Scheduled International Trip")
-                                        )
+                                        React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600" },
+                                            React.createElement('li', null, "Aug 22: Water Quality Test (Ruby)"),
+                                            React.createElement('li', null, "Sept 5: VO2 Max Test (Advik)"),
+                                            React.createElement('li', null, "Sept 28: Prenuvo MRI (Ruby)")
+                                        ),
+                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, "Stay on track with your personalized plan!")
                                     ),
-                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
                                         React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Recent Communications"),
-                                        recentMessages.length > 0 ? recentMessages.map((msg, index) => (
-                                            React.createElement('p', { key: index, className: "text-gray-600 italic text-sm mb-1" }, `"${msg.content.substring(0, 70)}..." - ${msg.sender}`)
-                                        )) : React.createElement('p', { className: 'text-gray-500' }, 'No recent messages.')
+                                        recentMessages.length > 0 ? (
+                                            recentMessages.map((msg, index) => (
+                                                React.createElement('p', { key: index, className: "text-gray-600 italic text-sm mb-1" },
+                                                    `"${msg.content.length > 70 ? msg.content.substring(0, 70) + '...' : msg.content}" - ${msg.sender} (${msg.timestamp.split(' ')[0]})`
+                                                )
+                                            ))
+                                        ) : (
+                                            React.createElement('p', { className: "text-gray-500" }, "No recent messages yet.")
+                                        ),
+                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, "See full chat history for details.")
                                     )
                                 )
                             )
@@ -212,63 +352,248 @@
                         return (
                             React.createElement('div', { className: "p-6 text-gray-700" },
                                 React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Your Health Journey Timeline"),
-                                React.createElement('div', { className: "bg-white p-8 rounded-lg shadow-md overflow-y-auto max-h-[600px] border border-gray-200" },
-                                    React.createElement('button', {
-                                        onClick: fetchJourneyData,
-                                        disabled: isLoading,
-                                        className: "mb-6 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition disabled:opacity-50"
-                                    }, isLoading ? 'Refreshing...' : 'Refresh Journey'),
-                                    journeyData.length > 0 ? (
-                                        React.createElement('div', { className: "relative pl-6" },
-                                            React.createElement('div', { className: "absolute left-0 top-0 bottom-0 w-1 bg-indigo-200 rounded-full" }),
-                                            journeyData.map((item, index) => (
-                                                React.createElement('div', { key: index, className: "mb-8 relative" },
-                                                    React.createElement('div', { className: "absolute -left-2 top-1 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xs z-10" }, item.sender === 'Rohan' ? '👤' : '💬'),
-                                                    React.createElement('div', { className: "ml-6 pb-4" },
-                                                        React.createElement('p', { className: "text-sm text-gray-500 mb-1" }, item.timestamp),
-                                                        React.createElement('h3', { className: "font-semibold text-lg text-gray-800" }, `${item.sender}:`),
-                                                        React.createElement('p', { className: "text-gray-700" }, item.content || item.description),
-                                                        item.specialist && React.createElement('p', { className: "mt-1 text-xs text-gray-600" }, "Specialist: ", item.specialist)
+                                React.createElement('p', { className: "text-lg mb-6" }, "Visualize your progress, key decisions, and interventions over time."),
+                                isGeneratingConversation ? (
+                                    React.createElement('div', { className: "text-center py-10 text-xl text-indigo-600" },
+                                        React.createElement('p', null, "Generating 8-month journey data from backend..."),
+                                        React.createElement('div', { className: "spinner mt-4" })
+                                    )
+                                ) : (
+                                    React.createElement('div', { className: "bg-white p-8 rounded-lg shadow-md overflow-y-auto max-h-[600px] border border-gray-200" },
+                                        React.createElement('button', { // Refresh Journey Button
+                                            className: "mb-4 px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors duration-300",
+                                            onClick: fetchJourneyData,
+                                            disabled: isGeneratingConversation
+                                        }, "Refresh Journey"),
+                                        journeyData.length > 0 ? (
+                                            React.createElement('div', { className: "relative pl-6" },
+                                                React.createElement('div', { className: "absolute left-0 top-0 bottom-0 w-1 bg-indigo-200 rounded-full" }),
+                                                journeyData.map((item, index) => (
+                                                    // Only render items that have a decisionRationale or are explicitly marked as an 'event'
+                                                    // This filters out general chat messages from the timeline
+                                                    (item.decisionRationale || item.type === 'event') &&
+                                                    React.createElement('div', { key: index, className: "mb-8 relative" },
+                                                        React.createElement('div', { className: "absolute -left-2 top-1 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xs z-10" }, item.type === 'message' ? '💬' : '✨'),
+                                                        React.createElement('div', { className: "ml-6 pb-4 border-b border-gray-100 last:border-b-0" },
+                                                            React.createElement('p', { className: "text-sm text-gray-500 mb-1" }, item.timestamp),
+                                                            React.createElement('h3', { className: "font-semibold text-lg text-gray-800" }, item.type === 'message' ? `${item.sender}: ${item.content}` : item.description),
+                                                            item.details && (
+                                                                React.createElement('p', { className: "text-gray-700" }, item.details)
+                                                            ),
+                                                            // Display Rationale
+                                                            item.decisionRationale && (
+                                                                React.createElement('div', { className: "mt-2 p-3 bg-blue-50 rounded-md border border-blue-200 text-blue-700 text-sm" },
+                                                                    React.createElement('p', { className: "font-medium" }, "Rationale:"),
+                                                                    React.createElement('p', null, item.decisionRationale)
+                                                                )
+                                                            ),
+                                                            // Display Effectiveness with visual cue
+                                                            item.interventionEffect && (
+                                                                React.createElement('div', { className: `mt-1 text-xs ${getEffectivenessClass(item.interventionEffect)}` }, "Effect: ", item.interventionEffect)
+                                                            ),
+                                                            // Display Next Steps
+                                                            item.nextSteps && (
+                                                                React.createElement('div', { className: "mt-1 text-xs text-gray-600" }, "Next Steps: ", item.nextSteps)
+                                                            ),
+                                                            // Display Monetary Factor
+                                                            item.monetaryFactor && (
+                                                                React.createElement('div', { className: "mt-1 text-xs text-gray-600" }, "Monetary: ", item.monetaryFactor)
+                                                            ),
+                                                            item.timeEfficiency && (
+                                                                React.createElement('div', { className: "mt-1 text-xs text-gray-600" }, "Time: ", item.timeEfficiency)
+                                                            ),
+                                                            item.pillar && (
+                                                                React.createElement('div', { className: "mt-1 text-xs text-gray-600" }, "Pillar: ", item.pillar)
+                                                            ),
+                                                            // Display Health Growth Status (Metrics Snapshot)
+                                                            item.healthMetricsSnapshot && (
+                                                                React.createElement('div', { className: "mt-2 text-xs text-gray-700" },
+                                                                    React.createElement('p', { className: "font-medium" }, "Metrics Snapshot:"),
+                                                                    React.createElement('ul', { className: "list-disc list-inside ml-4" },
+                                                                        Object.entries(item.healthMetricsSnapshot).map(([key, value]) => (
+                                                                            React.createElement('li', { key: key }, `${key}: ${value}`)
+                                                                        ))
+                                                                    )
+                                                                )
+                                                            )
+                                                        )
                                                     )
-                                                )
-                                            ))
+                                                ))
+                                            )
+                                        ) : (
+                                            React.createElement('div', { className: "text-center text-gray-400 text-xl py-20" }, "No journey data available yet.")
                                         )
-                                    ) : React.createElement('p', null, 'No journey data.')
+                                    )
                                 )
                             )
                         );
                     case 'messages':
+                        // This is the main chat interface
+                        const [currentChatInput, setCurrentChatInput] = useState(''); // State for the chat input field
+                        const chatBoxRef = useRef(null); // Ref for auto-scrolling chat box
+
+                        // Auto-scroll chat box when messages update
+                        useEffect(() => {
+                            if (chatBoxRef.current) {
+                                chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+                            }
+                        }, [chatMessages]); // chatMessages is the state containing all chat messages
+
+                        const handleChatInputChange = (e) => {
+                            setCurrentChatInput(e.target.value);
+                        };
+
+                        const handleSendMessage = async () => {
+                            if (!currentChatInput.trim()) return;
+
+                            const userMessage = {
+                                sender: "Rohan",
+                                content: currentChatInput,
+                                timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '), // Current timestamp
+                                sentiment: "neutral" // Default sentiment for user input
+                            };
+                            setChatMessages(prevMessages => [...prevMessages, userMessage]);
+                            setCurrentChatInput(''); // Clear input immediately
+
+                            // Prepare chat history for backend (only content and role for LLM context)
+                            const chatHistoryForBackend = chatMessages.map(msg => ({
+                                role: msg.sender === "Rohan" ? "user" : "model",
+                                parts: [{ text: msg.content }]
+                            }));
+                            chatHistoryForBackend.push({ role: "user", parts: [{ text: userMessage.content }] }); // Add current user message
+
+                            try {
+                                const response = await fetch(`${BACKEND_API_BASE_URL}/api/generate-message`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ prompt: userMessage.content, chatHistory: chatHistoryForBackend })
+                                });
+                                const data = await response.json();
+                                const botMessageContent = data.message || "⚠️ Error: No response";
+                                const botSentiment = data.sentiment || "neutral"; 
+
+                                const newBotMessage = {
+                                    sender: "Elyx", // Assuming bot is "Elyx"
+                                    content: botMessageContent,
+                                    timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                                    sentiment: botSentiment
+                                };
+                                setChatMessages(prevMessages => [...prevMessages, newBotMessage]);
+                            } catch (err) {
+                                console.error("Chat API error:", err);
+                                setChatMessages(prevMessages => [...prevMessages, {
+                                    sender: "Elyx",
+                                    content: "⚠️ Failed to reach AI backend.",
+                                    timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                                    sentiment: "sad"
+                                }]);
+                            }
+                        };
+
+                        // Helper to get sentiment class for chat bubbles
+                        const getChatBubbleClass = (sender, sentiment) => {
+                            if (sender === 'Rohan') return 'bubble-user'; // User messages always blue and right-aligned
+                            
+                            // Elyx messages based on sentiment
+                            switch (sentiment) {
+                                case 'angry': return 'bubble-angry';
+                                case 'sad': return 'bubble-sad';
+                                case 'curious': return 'bubble-curious';
+                                case 'authoritative': return 'bubble-authoritative';
+                                case 'positive': return 'bubble-positive';
+                                case 'analytical': return 'bubble-analytical'; // Custom color for analytical
+                                case 'practical': return 'bubble-practical'; // Custom color for practical
+                                case 'direct': return 'bubble-direct'; // Custom color for direct
+                                default: return 'bubble-elyx'; // Default Elyx color
+                            }
+                        };
+
                         return (
                             React.createElement('div', { className: "p-6 text-gray-700" },
                                 React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Your Conversations"),
-                                React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md overflow-y-auto max-h-[600px] flex flex-col-reverse" },
-                                    journeyData.filter(item => item.type === 'message').reverse().map((msg, index) => (
-                                        React.createElement('div', { key: index, className: `mb-4 p-3 rounded-lg max-w-[80%] ${msg.sender === 'Rohan' ? 'bg-blue-100 self-end text-right' : 'bg-gray-100 self-start text-left'}` },
-                                            React.createElement('p', { className: "font-semibold text-sm mb-1" }, msg.sender),
-                                            React.createElement('p', { className: "text-gray-800" }, msg.content),
-                                            React.createElement('p', { className: "text-xs text-gray-500 mt-1" }, msg.timestamp)
+                                React.createElement('p', { className: "text-lg mb-6" }, "Here, you'll find all your WhatsApp-style communications with the Elyx team."),
+                                isGeneratingConversation ? (
+                                    React.createElement('div', { className: "text-center py-10 text-xl text-indigo-600" },
+                                        React.createElement('p', null, "Generating messages..."),
+                                        React.createElement('div', { className: "spinner mt-4" })
+                                    )
+                                ) : (
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md flex flex-col h-[600px]" },
+                                        React.createElement('button', { // Refresh Journey Button
+                                            className: "mb-4 px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors duration-300",
+                                            onClick: fetchJourneyData,
+                                            disabled: isGeneratingConversation
+                                        }, "Refresh Journey"),
+                                        React.createElement('div', { id: "chat-box", ref: chatBoxRef, className: "flex-grow overflow-y-auto mb-4" },
+                                            chatMessages.map((msg, index) => (
+                                                React.createElement('div', { key: index, className: `chat-bubble ${getChatBubbleClass(msg.sender, msg.sentiment)}` },
+                                                    React.createElement('strong', null, msg.sender, ":"),
+                                                    " ",
+                                                    msg.content
+                                                )
+                                            ))
+                                        ),
+                                        React.createElement('div', { className: "flex" },
+                                            React.createElement('input', {
+                                                type: "text",
+                                                id: "user-input",
+                                                className: "flex-grow p-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-indigo-500",
+                                                placeholder: "Type your message...",
+                                                value: currentChatInput,
+                                                onChange: handleChatInputChange,
+                                                onKeyPress: (e) => { if (e.key === 'Enter') handleSendMessage(); }
+                                            }),
+                                            React.createElement('button', {
+                                                id: "send-btn",
+                                                className: "px-6 py-3 bg-indigo-600 text-white rounded-r-lg font-semibold hover:bg-indigo-700 transition-colors duration-300",
+                                                onClick: handleSendMessage
+                                            }, "Send")
                                         )
-                                    ))
+                                    )
                                 )
                             )
                         );
                     case 'specialists':
-                        const specialists = [
-                            { name: "Dr. Warren", role: "Medical Strategist", desc: "Physician and final clinical authority, interprets lab results, approves diagnostic strategies." },
-                            { name: "Advik", role: "Performance Scientist", desc: "Data analysis expert (wearables data), focuses on nervous system, sleep, cardiovascular training." },
-                            { name: "Carla", role: "Nutritionist", desc: "Designs nutrition plans, analyzes food logs and CGM data, supplement recommendations." },
-                            { name: "Rachel", role: "Physiotherapist", desc: "Manages physical movement: strength training, mobility, injury rehabilitation." },
-                            { name: "Ruby", role: "Concierge", desc: "Primary point of contact for logistics, scheduling, reminders, and follow-ups." },
-                            { name: "Neel", role: "Concierge Lead", desc: "Senior leader, major strategic reviews, de-escalates frustrations, connects work to goals." }
-                        ];
                         return (
-                             React.createElement('div', { className: "p-6 text-gray-700" },
+                            React.createElement('div', { className: "p-6 text-gray-700" },
                                 React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Elyx Health Specialists"),
+                                React.createElement('p', { className: "text-lg mb-6" }, "Meet the team of experts guiding your health journey and review their direct communications."),
                                 React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" },
-                                    specialists.map(spec => React.createElement('div', { key: spec.name, className: "bg-white p-6 rounded-lg shadow-md" },
-                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, `${spec.name} `, React.createElement('span', { className: "text-sm text-gray-500" }, `(${spec.role})`)),
-                                        React.createElement('p', { className: "text-gray-600" }, spec.desc)
-                                    ))
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Dr. Warren ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Medical Strategist)")),
+                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Physician and final clinical authority, interprets lab results, approves diagnostic strategies.", React.createElement('br'), "**Voice:** Authoritative, precise, scientific."),
+                                        React.createElement('p', { className: "text-sm text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Dr. Warren's Chats"))
+                                    ),
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Advik ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Performance Scientist)")),
+                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Data analysis expert (wearables data), focuses on nervous system, sleep, cardiovascular training.", React.createElement('br'), "**Voice:** Analytical, curious, pattern-oriented."),
+                                        React.createElement('p', { className: "text-sm text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Advik's Chats"))
+                                    ),
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Carla ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Nutritionist)")),
+                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Designs nutrition plans, analyzes food logs and CGM data, supplement recommendations.", React.createElement('br'), "**Voice:** Practical, educational, focused on behavioral change."),
+                                        React.createElement('p', { className: "text-sm text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Carla's Chats"))
+                                    ),
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Rachel ", React.createElement('span', { className: "text-sm text-gray-500" }, "(PT / Physiotherapist)")),
+                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Manages physical movement: strength training, mobility, injury rehabilitation.", React.createElement('br'), "**Voice:** Direct, encouraging, focused on form and function."),
+                                        React.createElement('p', { className: "text-sm text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Rachel's Chats"))
+                                    ),
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
+                                        React.createElement('h3', { className : "text-xl font-medium mb-2 text-indigo-700" }, "Dr. Evans ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Stress Management)")),
+                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Provides tools and strategies for stress resilience and cognitive load management.", React.createElement('br'), "**Voice:** Practical, insightful, calm (assumed based on context)."),
+                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Dr. Evans' Chats"))
+                                    ),
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Ruby ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Concierge)")),
+                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Primary point of contact for logistics, scheduling, reminders, and follow-ups.", React.createElement('br'), "**Voice:** Empathetic, organized, proactive."),
+                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Ruby's Chats"))
+                                    ),
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Neel ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Concierge Lead)")),
+                                        React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Senior leader, major strategic reviews, de-escalates frustrations, connects work to goals.", React.createElement('br'), "**Voice:** Strategic, reassuring, focused on the big picture."),
+                                        React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Neel's Chats"))
+                                    )
                                 )
                             )
                         );
@@ -276,19 +601,26 @@
                         return (
                             React.createElement('div', { className: "p-6 text-gray-700" },
                                 React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Ask About a Decision"),
+                                React.createElement('p', { className: "text-lg mb-6" }, "Have a question about a specific recommendation, medication, or plan change? Type it below and our AI will provide the rationale."),
                                 React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
                                     React.createElement('textarea', {
-                                        className: "w-full p-4 border border-gray-300 rounded-lg mb-4", rows: "5",
-                                        placeholder: "E.g., Why was my ApoB a focus?",
-                                        value: decisionQuery, onChange: (e) => setDecisionQuery(e.target.value),
+                                        className: "w-full p-4 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-200",
+                                        rows: "5",
+                                        placeholder: "E.g., Why was the blue-light blocking glasses suggested?",
+                                        value: decisionQuery,
+                                        onChange: (e) => setDecisionQuery(e.target.value),
+                                        disabled: isLoadingDecision
                                     }),
                                     React.createElement('button', {
-                                        className: `w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold ${isLoadingDecision ? 'opacity-50' : 'hover:bg-indigo-700'}`,
-                                        onClick: handleDecisionQuery, disabled: isLoadingDecision,
+                                        className: `w-full bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold text-lg shadow-md transition-all duration-300 ${isLoadingDecision ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-700 hover:shadow-lg'}`,
+                                        onClick: handleDecisionQuery,
+                                        disabled: isLoadingDecision
                                     }, isLoadingDecision ? 'Asking AI...' : 'Ask Elyx AI'),
-                                    decisionResponse && React.createElement('div', { className: "mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200" },
-                                        React.createElement('p', { className: "font-semibold text-indigo-800" }, "Elyx AI's Explanation:"),
-                                        React.createElement('p', { className: 'whitespace-pre-wrap' }, decisionResponse)
+                                    decisionResponse && (
+                                        React.createElement('div', { className: "mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200 text-indigo-800 break-words" },
+                                            React.createElement('p', { className: "font-semibold" }, "Elyx AI's Explanation:"),
+                                            React.createElement('p', null, decisionResponse)
+                                        )
                                     )
                                 )
                             )
@@ -298,19 +630,34 @@
                             React.createElement('div', { className: "p-6 text-gray-700" },
                                 React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Rohan's Profile"),
                                 React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
-                                    React.createElement('h3', { className: "text-lg font-medium text-indigo-700" }, "Personal Details"),
-                                    React.createElement('ul', { className: "list-disc list-inside mt-2 text-gray-600" },
-                                         React.createElement('li', null, "Name: Rohan Patel"),
-                                         React.createElement('li', null, "Age: 46"),
-                                         React.createElement('li', null, "Residence: Singapore"),
-                                         React.createElement('li', null, "Occupation: Regional Head of Sales (FinTech)"),
+                                    React.createElement('p', { className: "text-lg font-medium text-indigo-700 mb-2" }, "Personal Details:"),
+                                    React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600 mb-4" },
+                                        React.createElement('li', null, "**Preferred Name:** Rohan Patel"),
+                                        React.createElement('li', null, "**Age:** 46"),
+                                        React.createElement('li', null, "**Gender:** Male"),
+                                        React.createElement('li', null, "**Primary Residence:** Singapore"),
+                                        React.createElement('li', null, "**Occupation:** Regional Head of Sales (FinTech)")
                                     ),
-                                    React.createElement('h3', { className: "text-lg font-medium text-indigo-700 mt-4" }, "Core Goals"),
-                                    React.createElement('ul', { className: "list-disc list-inside mt-2 text-gray-600" },
-                                        React.createElement('li', null, "Reduce risk of heart disease (ApoB focus)"),
-                                        React.createElement('li', null, "Enhance cognitive function and focus")
+                                    React.createElement('p', { className: "text-lg font-medium text-indigo-700 mb-2" }, "Core Goals:"),
+                                    React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600 mb-4" },
+                                        React.createElement('li', null, "Reduce risk of heart disease (by Dec 2026)"),
+                                        React.createElement('li', null, "Enhance cognitive function and focus (by June 2026)"),
+                                        React.createElement('li', null, "Implement annual full-body health screenings (starting Nov 2025)")
                                     ),
-                                    isAuthReady && userId && React.createElement('div', { className: "mt-6 p-4 bg-blue-50 rounded-lg text-blue-800" },
+                                    React.createElement('p', { className: "text-lg font-medium text-indigo-700 mb-2" }, "Behavioral Insights:"),
+                                    React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600 mb-4" },
+                                        React.createElement('li', null, "Analytical, driven, values efficiency and evidence-based approaches."),
+                                        React.createElement('li', null, "Highly motivated but time-constrained. Needs clear, concise plans."),
+                                        React.createElement('li', null, "Wife supportive, 2 young kids, employs a cook.")
+                                    ),
+                                    React.createElement('p', { className: "text-lg font-medium text-indigo-700 mb-2" }, "Tech Stack:"),
+                                    React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600" },
+                                        React.createElement('li', null, "Garmin watch (used for runs), considering Oura ring/Whoop."),
+                                        React.createElement('li', null, "Willing to enable full data sharing.")
+                                    )
+                                ),
+                                isAuthReady && userId && (
+                                    React.createElement('div', { className: "mt-6 p-4 bg-blue-50 rounded-lg text-blue-800 break-words" },
                                         React.createElement('p', { className: "font-semibold" }, "Your User ID:"),
                                         React.createElement('p', { className: "text-sm" }, userId)
                                     )
@@ -326,8 +673,8 @@
                 React.createElement('div', { className: "min-h-screen bg-gray-100 font-sans text-gray-900 flex flex-col" },
                     React.createElement('nav', { className: "bg-indigo-800 p-4 shadow-md" },
                         React.createElement('div', { className: "container mx-auto flex justify-between items-center flex-wrap" },
-                            React.createElement('div', { className: "text-white text-2xl font-bold" }, "Elyx Life"),
-                            React.createElement('div', { className: "flex space-x-1 md:space-x-2 mt-2 md:mt-0" },
+                            React.createElement('div', { className: "text-white text-2xl font-bold rounded-md px-3 py-1 bg-indigo-600" }, "Elyx Life"),
+                            React.createElement('div', { className: "flex space-x-4 mt-2 md:mt-0" },
                                 React.createElement(NavItem, { label: "Dashboard", section: "dashboard", activeSection: activeSection, setActiveSection: setActiveSection }),
                                 React.createElement(NavItem, { label: "Journey", section: "journey", activeSection: activeSection, setActiveSection: setActiveSection }),
                                 React.createElement(NavItem, { label: "Messages", section: "messages", activeSection: activeSection, setActiveSection: setActiveSection }),
@@ -339,12 +686,13 @@
                     ),
                     React.createElement('main', { className: "flex-grow container mx-auto px-4 py-8" }, renderContent()),
                     React.createElement('footer', { className: "bg-indigo-800 p-4 text-white text-center text-sm mt-8" },
-                        React.createElement('p', null, `© ${new Date().getFullYear()} Elyx Life. All rights reserved.`)
+                        React.createElement('div', { className: "container mx-auto" }, "© ", new Date().getFullYear(), " Elyx Life. All rights reserved.")
                     )
                 )
             );
         }
 
+        // Render the App component into the root div
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(App, null));
     </script>
