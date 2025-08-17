@@ -590,103 +590,53 @@ def generate_week_events(week_index, current_date, state):
 # -------------------------
 # Main generate function
 # -------------------------
-@app.route('/api/generate-journey', methods=['POST'])
-def api_generate_journey():
+@app.route("/api/journey", methods=["GET"])
+def get_journey():
+    return jsonify(generate_journey_summary(user_name="Rohan Patel"))
+
+
+import random
+import datetime
+
+def generate_journey_summary(user_name="Rohan Patel"):
+    """Generate a milestone-only journey (no chat dumps).
+    Focused on significant results and events only.
     """
-    Generate the full 8-month journey dataset dynamically, returning a list of events.
-    Enforces the hackathon constraints and ensures natural, state-aware interactions.
-    """
-    # reset used messages/pools for fresh generation
-    global PERSONA_POOLS, USED_MESSAGES
-    PERSONA_POOLS = {
-        "Rohan": ROHAN_POOL.copy(),
-        "Ruby": RUBY_POOL.copy(),
-        "Dr. Warren": DRWARREN_POOL.copy(),
-        "Advik": ADVIK_POOL.copy(),
-        "Carla": CARLA_POOL.copy(),
-        "Rachel": RACHEL_POOL.copy(),
-        "Neel": NEEL_POOL.copy(),
-        "System": SYSTEM_POOL.copy()
-    }
-    USED_MESSAGES = {k: set() for k in PERSONA_POOLS.keys()}
+    now = datetime.datetime.now()
+    journey = []
 
-    timeline_events = []
-    current_date = START_DATE
-    # Reset global simulated metrics
-    metrics = {
-        "HRV": 45,
-        "RestingHR": 65,
-        "GlucoseAvg": 105,
-        "ApoB": 105,
-        "RecoveryScore": 70,
-        "DeepSleep": 60,
-        "POTS_symptoms": "moderate",
-        "BackPain": "mild"
-    }
+    milestones = [
+        # Diagnostics
+        f"{user_name} completed the first full diagnostic panel — ApoB was flagged at 106 mg/dL, leading to a fiber + cardio protocol.",
+        f"{user_name} repeated diagnostic tests at 3 months — ApoB improved to 98 mg/dL, confirming plan effectiveness.",
+        f"{user_name} underwent VO₂ max testing — score improved by 12%, supporting aerobic training progression.",
+        
+        # Travel adaptation
+        f"{user_name} trialed travel recovery protocol. Post-flight HRV recovery was 20% faster than baseline.",
+        
+        # Illness / recovery
+        f"{user_name} successfully navigated a viral infection using Elyx Sick Day Protocol — recovery was 3 days faster than expected.",
+        
+        # Sleep & cognitive health
+        f"{user_name} trialed blue-light glasses and circadian realignment strategies — recorded best deep sleep metrics to date.",
+        f"{user_name} committed to piano training as a cognitive longevity goal, supported by Sarah and Dr. Warren.",
+        
+        # Nutrition & lifestyle
+        f"{user_name} integrated personal chef Javier into nutrition planning — adherence rose to ~80% with travel-proof options.",
+        
+        # Strength / performance
+        f"{user_name} baseline DEXA and strength scan completed — muscle mass gain of +1.5 kg over 8 weeks.",
+        f"{user_name} initiated Keynote Peak Performance Protocol for major work event, aligning all pillars (nutrition, sleep, recovery).",
+    ]
 
-    state = {
-        "metrics": metrics,
-        "in_travel": False,
-        "last_diag_week": None
-    }
+    # Only log each once (no duplicates, no filler)
+    for i, event in enumerate(milestones):
+        journey.append({
+            "timestamp": (now - datetime.timedelta(days=i*10)).strftime("%A, %B %d, %Y"),
+            "entry": event
+        })
 
-    # Add initial onboarding sequence
-    onboarding_time = current_date + timedelta(hours=9)
-    timeline_events.append({
-        "type": "message",
-        "specialist": "Ruby",
-        "sender": "Ruby",
-        "timestamp": format_ts(onboarding_time),
-        "content": "Ruby: Understood. We'll coordinate your onboarding and consolidate records.",
-        "serviceInteractionType": "onboarding",
-        "healthMetricsSnapshot": metrics.copy(),
-        "decisionRationale": "Initial onboarding to set expectations and consolidate data."
-    })
-    # Rohan initial message
-    timeline_events.append({
-        "type": "message",
-        "specialist": None,
-        "sender": "Rohan",
-        "timestamp": format_ts(onboarding_time + timedelta(hours=1)),
-        "content": "Rohan: Honestly, things feel ad-hoc. High travel, inconsistent routines. I want a coordinated plan.",
-        "serviceInteractionType": "member-initiated query",
-        "healthMetricsSnapshot": metrics.copy(),
-        "sentiment": "frustrated"
-    })
-
-    # Weekly generation loop
-    for week in range(1, WEEKS_TO_GENERATE + 1):
-        week_start = START_DATE + timedelta(weeks=week-1)
-        week_events = generate_week_events(week, week_start, state)
-        timeline_events.extend(week_events)
-
-    # Final closure event: Q4 summary
-    final_summary_time = START_DATE + timedelta(weeks=WEEKS_TO_GENERATE, days=1)
-    timeline_events.append({
-        "type": "final_summary",
-        "specialist": "Neel",
-        "sender": "Neel",
-        "timestamp": format_ts(final_summary_time),
-        "content": "Neel: Closing summary — We reviewed diagnostics, implemented lifestyle interventions, adapted plans during travel, and tracked results. Next steps: continue iterative optimization.",
-        "healthMetricsSnapshot": state["metrics"].copy()
-    })
-
-    # Ensure no duplicate exact content strings appear (across all senders)
-    seen_contents = set()
-    deduped_events = []
-    for ev in timeline_events:
-        text = ev.get("content", "")
-        if text in seen_contents:
-            # if duplicate content we'd rather slightly mutate fallback to preserve uniqueness
-            ev["content"] = text + f" (note @{random.randint(1000,9999)})"
-            seen_contents.add(ev["content"])
-            deduped_events.append(ev)
-        else:
-            seen_contents.add(text)
-            deduped_events.append(ev)
-
-    return jsonify(deduped_events)
-
+    return list(reversed(journey))
 
 # -------------------------
 # Explain decision endpoint
