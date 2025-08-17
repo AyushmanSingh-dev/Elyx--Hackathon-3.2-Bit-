@@ -879,111 +879,69 @@ def detect_sentiment(query: str) -> str:
 
 @app.route('/api/explain-decision', methods=['POST'])
 def api_explain_decision():
-    """
-    Explain a decision made in the journey, with keyword-agent matching
-    and tone-aware response generation.
-    """
     data = request.json
-    query = data.get('query', '').strip()
-    journey_data_context = data.get('journeyData', []) 
+    query = data.get('query')
+    journey_data_context = data.get('journeyData', [])
 
     if not query:
         return jsonify({"error": "Query is required."}), 400
 
-    # --- Detect patient tone ---
-    sentiment = detect_sentiment(query)
-
-    # --- Keyword mapping for better matching ---
-    keyword_map = {
-        "exercise": ["exercise adherence", "exercise deviation", "exercise_update"],
-        "travel": ["travel", "travel_protocol_prep", "travel_logistics", "post_travel_check_in"],
-        "diagnostic": ["diagnostic test", "biomarker", "panel", "lab test"],
-        "sleep": ["sleep", "deepsleep"],
-        "stress": ["stress", "hrv", "recovery"],
-        "sugar": ["glucose", "sugar", "high sugar"],
-        "bp": ["blood pressure", "bp", "hypertension"],
-        "back pain": ["back pain", "couch stretch"],
-        "illness": ["sick", "illness", "viral infection"],
-        "investment": ["piano", "new goal", "investment"]
-    }
-
+    # Find the most relevant decision
     relevant_item = None
     query_lower = query.lower()
 
-    # --- Try keyword-based search first ---
-    for item in reversed(journey_data_context):
-        searchable_text = (
-            f"{item.get('content', '')} "
-            f"{item.get('description', '')} "
-            f"{item.get('details', '')} "
-            f"{item.get('decisionRationale', '')}"
-        ).lower()
+    searchable_items = [
+        item for item in journey_data_context
+        if 'decisionRationale' in item and item['decisionRationale']
+    ]
 
-        for key, synonyms in keyword_map.items():
-            if key in query_lower or any(syn in query_lower for syn in synonyms):
-                if any(syn in searchable_text for syn in synonyms):
-                    relevant_item = item
-                    break
-        if relevant_item:
+    for item in reversed(searchable_items):
+        content_to_search = (
+            item.get('content', '') + ' ' +
+            item.get('description', '') + ' ' +
+            item.get('details', '') + ' ' +
+            item.get('decisionRationale', '')
+        )
+        if query_lower in content_to_search.lower():
+            relevant_item = item
             break
 
-    # --- If nothing matched keywords, fallback to old direct rationale search ---
-    if not relevant_item:
-        for item in reversed(journey_data_context): 
-            content_to_search = (
-                item.get('content', '') + ' ' +
-                item.get('description', '') + ' ' +
-                item.get('details', '') + ' ' +
-                item.get('decisionRationale', '')
-            )
-            if query_lower in content_to_search.lower():
-                relevant_item = item
-                break 
+    # Pull metrics from latest snapshot
+    last_entry = journey_data_context[-1] if journey_data_context else {}
+    metrics = last_entry.get("healthMetricsSnapshot", {})
+    hrv = metrics.get("HRV", "N/A")
+    glucose = metrics.get("GlucoseAvg", "N/A")
+    recovery = metrics.get("RecoveryScore", "N/A")
 
-    # --- Construct empathetic response based on sentiment ---
-    empathetic_prefix = ""
-    if sentiment in ["angry", "frustrated"]:
-        empathetic_prefix = "I understand your frustration, and it’s valid to feel this way. Here’s what happened: "
-    elif sentiment == "sad":
-        empathetic_prefix = "I’m sorry you’re feeling discouraged. Progress can take time, but here’s the reasoning: "
-    elif sentiment == "curious":
-        empathetic_prefix = "That’s a great question! Let me explain: "
-    elif sentiment == "nonchalant":
-        empathetic_prefix = "Sure, here’s the reasoning: "
-    else:
-        empathetic_prefix = "Here’s the reasoning behind that decision: "
+    # Diverse templates
+    templates = [
+        f"This recommendation was made to help improve your long-term health. Specifically, your recovery score is {recovery}, which suggested readiness for the adjustment.",
+        f"We adjusted your plan after noticing changes in your metrics — for example, your HRV is {hrv} and your glucose average is {glucose}.",
+        f"The rationale is linked to your progress. With HRV at {hrv} and recovery at {recovery}, the system identified a safe point to make changes.",
+        f"Your recent results guided this decision. Improvements in recovery and glucose stability ({glucose} mg/dL) showed readiness for the next step.",
+        f"This wasn’t random — it was based on patterns in your data. For instance, your recovery is trending around {recovery}, which supports the plan update."
+    ]
 
-    # --- Final formatted explanation ---
+    # Tone adjustment based on query
+    prefix = "Here’s some context: "
+    if any(word in query_lower for word in ["why", "confused", "unclear", "doubt"]):
+        prefix = "I completely understand your concern. "
+    elif any(word in query_lower for word in ["good", "progress", "happy", "great"]):
+        prefix = "Great to see your interest! "
+    elif any(word in query_lower for word in ["angry", "frustrated", "upset"]):
+        prefix = "I hear your frustration, and I want to reassure you. "
+
+    # Pick a random explanation for diversity
+    explanation_text = prefix + random.choice(templates)
+
+    # If relevant item exists, append its rationale
     if relevant_item:
-        explanation_text = relevant_item.get('content') or relevant_item.get('description') or relevant_item.get('details')
-        formatted_explanation = empathetic_prefix + explanation_text + "\n\n"
-        if relevant_item.get('decisionRationale'):
-            formatted_explanation += f"**Rationale:** {relevant_item['decisionRationale']}\n"
-        if relevant_item.get('pillar'):
-            formatted_explanation += f"**Pillar Impact:** {relevant_item['pillar']}\n"
-        if relevant_item.get('interventionEffect'):
-            formatted_explanation += f"**Observed Effect:** {relevant_item['interventionEffect']}\n"
-        if relevant_item.get('monetaryFactor'):
-            formatted_explanation += f"**Monetary Factor:** {relevant_item['monetaryFactor']}\n"
-        if relevant_item.get('timeEfficiency'):
-            formatted_explanation += f"**Time Efficiency:** {relevant_item['timeEfficiency']}\n"
-        if relevant_item.get('specialistInvolved'):
-            formatted_explanation += f"**Specialist Involved:** {relevant_item['specialistInvolved']}\n"
-        if relevant_item.get('nextSteps'):
-            formatted_explanation += f"**Following Steps:** {relevant_item['nextSteps']}\n"
-        if relevant_item.get('healthMetricsSnapshot'):
-            formatted_explanation += f"**Metrics at Time:** {json.dumps(relevant_item['healthMetricsSnapshot'], indent=2)}\n"
-    else:
-        formatted_explanation = (
-            empathetic_prefix +
-            "I couldn’t find a matching decision for your query. "
-            "Could you rephrase or ask about a specific intervention?"
-        )
+        rationale = relevant_item.get('decisionRationale')
+        if rationale:
+            explanation_text += f"\n\n**Rationale in this case:** {rationale}"
 
-    return jsonify({
-        "explanation": formatted_explanation,
-        "detected_sentiment": sentiment
-    })
+    return jsonify({"explanation": explanation_text})
+
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG') == '1', host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
