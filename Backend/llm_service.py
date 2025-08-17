@@ -5,7 +5,7 @@ import json
 import os
 from datetime import datetime, timedelta
 import random
-import math
+import math # Added for poisson_int
 
 app = Flask(__name__)
 CORS(app)
@@ -124,7 +124,6 @@ CURRENT_HEALTH_METRICS = {} # Will be initialized in generate_full_journey
 # --- Global variable to track Rohan's recently asked topics for memory ---
 # Stores tuples of (topic_key, timestamp) to allow topics to "cool down"
 ROHAN_ASKED_TOPICS_MEMORY = [] # Stores (topic_key, datetime_object)
-MEMORY_RETENTION_WEEKS = 4 # Rohan won't ask about the same topic for this many weeks
 
 # --- Message Pools (expanded) ---
 # For each persona we create a large pool of unique messages. We'll pop messages to avoid reuse.
@@ -132,94 +131,38 @@ def make_pool(prefix, items):
     return [f"{prefix}{text}" for text in items]
 
 # Rohan: member-initiated questions / updates (expanded ~4x)
-ROHAN_QUERY_POOL = { # Renamed from ROHAN_POOL for clarity
-    "initial_plan": [
-        "Ruby, I'm feeling overwhelmed with my ad-hoc health routine. High work stress, and my Garmin HR seems off even on rest days. I need a proper, coordinated plan. My current supplement list is attached.",
-        "My current health efforts feel disjointed. Can we establish a more cohesive plan? My wearable data feels inconsistent.",
-        "I'm ready for a structured health approach. My current stress levels are high, and my Garmin data isn't reflecting recovery. Attached is my supplement list.",
-        "The current health approach isn't sustainable for my schedule. I need a streamlined, effective plan. My metrics are concerning."
-    ],
-    "medical_records": [
-        "Acknowledged. How long will that take? And what about my fitness goals?",
-        "Understood. What's the typical turnaround for record consolidation? Also, let's discuss optimizing my workouts.",
-        "Okay, I'll ensure Sarah assists with records. Separately, I'm keen to refine my fitness strategy.",
-        "Records are in progress. Meanwhile, I'm eager to discuss my exercise regimen and how to maximize its impact."
-    ],
-    "movement_assessment": [
-        "Understood. I'm also thinking about my stress levels. Any immediate tips?",
-        "A movement assessment makes sense. On another note, I've been feeling more stressed. Any quick stress relief techniques?",
-        "Good. While we schedule that, what are some immediate strategies for managing cognitive load?",
-        "I'm on board for the assessment. What are some rapid techniques for mental clarity and stress reduction?"
-    ],
-    "couch_stretch": [
-        "The couch stretch helped a bit! Also, for stress, any immediate dietary tips? I struggle with consistent energy.",
-        "That stretch provided some relief. What about nutritional strategies for managing stress and energy dips?",
-        "Good call on the stretch. What are some quick dietary hacks for energy and stress during busy days?",
-        "The stretch was beneficial. Now, can we address nutritional support for my energy levels and stress resilience?"
-    ],
-    "diagnostic_panel": [
-        "Yes, next Tuesday works. Confirmed. I'm keen to see the numbers, though I'm always a bit skeptical until I see tangible results.",
-        "Tuesday works for diagnostics. I'm interested in the data, but I need to see actionable insights, not just numbers.",
-        "Confirmed for diagnostics next week. I value data, but ultimately, it's about practical improvements. What should I expect?",
-        "I've scheduled the diagnostic panel for Tuesday. What are the key metrics we're tracking, and how will they inform my plan?"
-    ],
-    "apo_b": [
-        "What's the plan for the ApoB? I want clear, actionable steps. Is this a significant investment?",
-        "Elevated ApoB is a concern. What are the most effective, efficient interventions? What's the cost implication?",
-        "Understood on ApoB. Let's prioritize interventions. Are there any budget-friendly alternatives for dietary changes or supplements?",
-        "Given the ApoB results, what's the immediate, high-impact strategy? I need to know the financial implications and time commitment."
-    ],
-    "travel": [
-        "This sounds critical. I need a clear, minute-by-minute guide for my upcoming trip. How can we make it time-efficient?",
-        "My travel schedule is intense. What's the most time-efficient jet lag protocol? I need practical advice for on-the-go.",
-        "Preparing for travel. What are the key strategies to minimize disruption to my health, especially given my limited time?",
-        "Upcoming international travel. What specific protocols can I implement to mitigate jet lag and maintain my routine effectively?"
-    ],
-    "illness": [
-        "This is a major setback. The board meeting is critical. What's the immediate plan? I need to maximize my recovery output.",
-        "Feeling unwell. This is impacting my ability to perform. What's the fastest way to recover without compromising long-term health?",
-        "I'm experiencing symptoms. What's the Elyx protocol for this? I need to get back on track efficiently.",
-        "I'm feeling a dip in health. What's the recommended course of action to minimize downtime and prevent further impact on my schedule?"
-    ],
-    "recovery": [
-        "Good. I feel it. Let's get back to the plan.",
-        "Excellent. I'm seeing the positive effects. What's the next optimization?",
-        "Great news on recovery. I'm ready for the next challenge.",
-        "My recovery metrics are strong. What advanced strategies can we implement now to push further?"
-    ],
-    "piano": [
-        "I've always wanted to learn piano. From a health and performance perspective, is this a worthwhile use of my time?",
-        "Considering learning piano. What are the cognitive benefits, and how does it fit into my overall health investment strategy?",
-        "Is piano a good investment for cognitive longevity and stress? What's the commitment like?",
-        "I'm exploring new hobbies. Is learning piano a recommended activity for long-term brain health and stress reduction?"
-    ],
-    "poor_digestion": [
-        "I'm experiencing poor digestion. Any suggestions that are easy to integrate into my busy schedule?",
-        "What are some practical dietary adjustments for improving digestion, considering my travel and time constraints?",
-        "My digestion feels off. Are there any simple, effective strategies I can implement immediately?",
-        "Can you provide quick, actionable tips for better digestion that won't disrupt my routine?"
-    ],
-    "monetary_concern": [ # Rohan explicitly asks about cost
-        "I'm concerned about the cost of some recommendations. Can you suggest more budget-friendly alternatives?",
-        "How can we optimize for value without compromising results? Are there more economical options?",
-        "What's the return on investment for this, and are there less expensive but still effective options?",
-        "I need to balance health investments with financial prudence. What are some high-impact, low-cost recommendations?"
-    ],
-    "time_constraint": [ # Rohan explicitly asks about time
-        "I have very limited time. What's the most time-efficient way to achieve Y?",
-        "My schedule is packed. Can we focus on high-impact, low-time-commitment interventions?",
-        "What are some quick wins for health that fit into a demanding schedule?",
-        "I need strategies that deliver maximum health output for minimal time investment. Any suggestions?"
-    ],
-    "general_query": [
-        "Just checking in. Any new recommendations based on my overall progress?",
-        "What's the overarching strategy for the next phase of my health journey?",
-        "I'm curious about optimizing my current routine. Any thoughts on that?",
-        "What's the latest insight from my data? Any new areas of focus?"
+ROHAN_POOL = make_pool("",
+    [
+        "Just a quick check-in. The new meal plan from Carla has been helpful, energy is slightly better. What's the next step for nutrition?",
+        "My back pain flared up again after that long flight. What's the immediate plan to address this effectively?",
+        "Heads up — I have a last-minute trip to London next week. Can we get a jet-lag strategy that's easy to follow?",
+        "I've been feeling more headaches lately. Could they be migraines?",
+        "What's the overall strategy for my ApoB? I want something actionable and realistic, considering my time.",
+        "I have only a 36-hour window next week — can we front-load labs & scans efficiently?",
+        "The travel workout was manageable; I did 3/4 of it. Any adjustments or ways to make it more impactful?",
+        "My son has a cold. What's the best way to avoid catching it during a heavy work week, without disrupting my routine?",
+        "I only have short windows each day — what's a minimal, high-impact routine for fitness?",
+        "Can we push my strength session earlier, mornings work better now.",
+        "I felt dizzy on standing this morning. Not severe but noticeable.",
+        "I'm low on fiber while traveling. What's the minimum effective approach for nutrition on the go?",
+        "Can Sarah coordinate the water quality test and VO2 slot?",
+        "I've been getting worse jet lag than before. Any tweak to the protocol?",
+        "Can we make my exercise plan more aggressive for the next two weeks?",
+        "My deep sleep was low last night—any quick tips?",
+        "I want to try time-restricted eating; what's a safe protocol?",
+        "I tried oatmeal and it spiked my glucose — what's the right way?",
+        "I noticed a rash under the Whoop strap. Any suggestions?",
+        "Can we do a DEXA and VO2 max next month?",
+        "Is a full-body MRI worth it for longevity screening?",
+        "How do I adjust nutrition when eating out in the US?",
+        "Would short meditation blocks really help focus and recovery?",
+        "My HR zones look wrong on Garmin, can Advik review?",
+        "I feel like the plan is ad-hoc — I want a coordinated approach.",
+        "If I add NMN or NR supplements, is it likely to help?"
     ]
-}
+)
 
-# Elyx Team Message Pools (expanded)
+# Ruby: concierge messages
 RUBY_POOL = make_pool("Ruby: ",
     [
         "Thanks for the update — I'm coordinating with the team and will confirm times by EOD. Your convenience is our priority.",
@@ -242,6 +185,7 @@ RUBY_POOL = make_pool("Ruby: ",
     ]
 )
 
+# Dr. Warren: medical strategist
 DRWARREN_POOL = make_pool("Dr. Warren: ",
     [
         "I've reviewed your records. Elevated ApoB at 110 mg/dL is an important target for risk reduction, aligning with your primary longevity goal. We'll interpret results in context and avoid knee-jerk medication choices unless clinically required.",
@@ -258,6 +202,7 @@ DRWARREN_POOL = make_pool("Dr. Warren: ",
     ]
 )
 
+# Advik: performance scientist
 ADVIK_POOL = make_pool("Advik: ",
     [
         "Small changes to sleep timing and light exposure can shift circadian rhythm quickly when traveling. We'll provide a concise protocol for your upcoming trip.",
@@ -273,6 +218,7 @@ ADVIK_POOL = make_pool("Advik: ",
     ]
 )
 
+# Carla: nutritionist
 CARLA_POOL = make_pool("Carla: ",
     [
         "For ApoB focus, prioritize soluble fiber, reduce saturated fats, and increase oily fish or plant sterols. Simple swaps can make a big difference.",
@@ -287,6 +233,7 @@ CARLA_POOL = make_pool("Carla: ",
     ]
 )
 
+# Rachel: physiotherapist
 RACHEL_POOL = make_pool("Rachel: ",
     [
         "Try this 12-minute hotel room routine focusing on glute activation and thoracic mobility. It's designed for maximum benefit in minimal time.",
@@ -299,17 +246,19 @@ RACHEL_POOL = make_pool("Rachel: ",
     ]
 )
 
+# Neel: concierge lead / relationship
 NEEL_POOL = make_pool("Neel: ",
     [
-        "Zooming out: trends are heading the right way despite travel volatility. Let's lock the next quarter's plan. How do you feel about the overall progress?",
-        "We can shift strategy if preferences or logistics demand it — your priorities guide the plan. What's your biggest challenge right now?",
-        "Thanks for the transparency. This is design constraints, not failure. We'll adapt and keep the big picture in mind. How can we support you best?",
+        "Zooming out: trends are heading the right way despite travel volatility. Let's lock the next quarter's plan. How do you feel about the overall progress?", # Added question
+        "We can shift strategy if preferences or logistics demand it — your priorities guide the plan. What's your biggest challenge right now?", # Added question
+        "Thanks for the transparency. This is design constraints, not failure. We'll adapt and keep the big picture in mind. How can we support you best?", # Added question
         "I'll handle escalations and ensure the team reduces your cognitive load so you can focus on outcomes. Your peace of mind is paramount.",
-        "Your commitment to integrating health into your busy life is truly paying off. We're seeing great progress across the board. What's next for you?",
-        "We're continuously fine-tuning your plan to ensure it's as effective and seamless as possible. Any feedback on how it's fitting into your routine?"
+        "Your commitment to integrating health into your busy life is truly paying off. We're seeing great progress across the board. What's next for you?", # More engaging
+        "We're continuously fine-tuning your plan to ensure it's as effective and seamless as possible. Any feedback on how it's fitting into your routine?" # More engaging
     ]
 )
 
+# System / automated nudge templates (non-personal)
 SYSTEM_POOL = make_pool("System: ",
     [
         "Weekly adherence report: member committed ~5 hours this week; adherence ~50%. Keep up the great effort!",
@@ -322,13 +271,14 @@ SYSTEM_POOL = make_pool("System: ",
 )
 
 PERSONA_POOLS = {}
-USED_MESSAGES = {}
+# Used messages tracks messages that have been popped from pools to prevent immediate reuse
+USED_MESSAGES = {} 
 
 def reset_pools():
     """ Resets the message pools and used messages trackers. Crucial for reproducible runs. """
     global PERSONA_POOLS, USED_MESSAGES
     PERSONA_POOLS = {
-        "Rohan": ROHAN_QUERY_POOL.copy(), # Changed to ROHAN_QUERY_POOL
+        "Rohan": ROHAN_POOL.copy(),
         "Ruby": RUBY_POOL.copy(),
         "Dr. Warren": DRWARREN_POOL.copy(),
         "Advik": ADVIK_POOL.copy(),
@@ -378,14 +328,14 @@ def detect_sentiment(text):
     if not text:
         return "neutral"
     t = text.lower()
-    if any(k in t for k in ["overwhelm", "stress", "off", "concerning", "flared up", "major setback", "unwell", "illness", "struggle", "dizzy", "rash", "not good"]):
+    if any(k in t for k in ["overwhelm", "stress", "off", "concerning", "flared up", "major setback", "unwell", "illness", "struggle", "dizzy", "rash"]):
         return "sad" if random.random() < 0.5 else "angry" # Vary between sad/angry for negative
-    if any(k in t for k in ["why", "how", "what's next", "updates", "curious", "question", "advise", "suggest", "recommend", "worth it", "implication", "basis", "insights", "optimize", "challenge", "tell me about"]):
+    if any(k in t for k in ["why", "how", "what's next", "updates", "curious", "question", "advise", "suggest", "recommend", "worth it", "implication", "basis", "insights", "optimize", "challenge"]):
         return "curious"
     if any(k in t for k in ["good", "great", "excellent", "fantastic", "helpful", "progress", "win", "better", "improving", "paying off"]):
         return "positive"
-    if any(k in t for k in ["acknowledged", "understood", "okay", "noted", "confirm"]):
-        return "neutral"
+    if any(k in t for k in ["fine", "okay", "alright", "nonchalant", "meh"]):
+        return "nonchalant"
     
     # Elyx team specific tones based on their persona
     if "dr. warren" in text.lower():
@@ -415,9 +365,8 @@ def poisson_int(lam):
     return k - 1
 
 # -------------------------
-# Core Generator Logic
+# Core Generator Logic (generate_llm_response is defined here)
 # -------------------------
-# This function is now defined BEFORE it's called in api_generate_journey
 def generate_llm_response(role, prompt_context, current_metrics, chat_history, journey_data_so_far, current_sim_date=None):
     prompt_lower = prompt_context.lower()
     response_text = ""
@@ -435,7 +384,6 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
     # Clean up old topics from memory
     if current_sim_date:
         global ROHAN_ASKED_TOPICS_MEMORY
-        # Filter out topics older than MEMORY_RETENTION_WEEKS
         ROHAN_ASKED_TOPICS_MEMORY = [
             (topic, ts) for topic, ts in ROHAN_ASKED_TOPICS_MEMORY
             if (current_sim_date - ts).days / 7 < MEMORY_RETENTION_WEEKS
@@ -447,6 +395,95 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
     if role == "Rohan":
         service_interaction_type = "member-initiated query"
         
+        # Define a pool of Rohan's questions, categorized by topic
+        # Added more variations and follow-up style questions
+        rohan_query_pool = {
+            "initial_plan": [
+                "Ruby, I'm feeling overwhelmed with my ad-hoc health routine. High work stress, and my Garmin HR seems off even on rest days. I need a proper, coordinated plan. My current supplement list is attached.",
+                "My current health efforts feel disjointed. Can we establish a more cohesive plan? My wearable data feels inconsistent.",
+                "I'm ready for a structured health approach. My current stress levels are high, and my Garmin data isn't reflecting recovery. Attached is my supplement list.",
+                "The current health approach isn't sustainable for my schedule. I need a streamlined, effective plan. My metrics are concerning."
+            ],
+            "medical_records": [
+                "Acknowledged. How long will that take? And what about my fitness goals?",
+                "Understood. What's the typical turnaround for record consolidation? Also, let's discuss optimizing my workouts.",
+                "Okay, I'll ensure Sarah assists with records. Separately, I'm keen to refine my fitness strategy.",
+                "Records are in progress. Meanwhile, I'm eager to discuss my exercise regimen and how to maximize its impact."
+            ],
+            "movement_assessment": [
+                "Understood. I'm also thinking about my stress levels. Any immediate tips?",
+                "A movement assessment makes sense. On another note, I've been feeling more stressed. Any quick stress relief techniques?",
+                "Good. While we schedule that, what are some immediate strategies for managing cognitive load?",
+                "I'm on board for the assessment. What are some rapid techniques for mental clarity and stress reduction?"
+            ],
+            "couch_stretch": [
+                "The couch stretch helped a bit! Also, for stress, any immediate dietary tips? I struggle with consistent energy.",
+                "That stretch provided some relief. What about nutritional strategies for managing stress and energy dips?",
+                "Good call on the stretch. What are some quick dietary hacks for energy and stress during busy days?",
+                "The stretch was beneficial. Now, can we address nutritional support for my energy levels and stress resilience?"
+            ],
+            "diagnostic_panel": [
+                "Yes, next Tuesday works. Confirmed. I'm keen to see the numbers, though I'm always a bit skeptical until I see tangible results.",
+                "Tuesday works for diagnostics. I'm interested in the data, but I need to see actionable insights, not just numbers.",
+                "Confirmed for diagnostics next week. I value data, but ultimately, it's about practical improvements. What should I expect?",
+                "I've scheduled the diagnostic panel for Tuesday. What are the key metrics we're tracking, and how will they inform my plan?"
+            ],
+            "apo_b": [
+                "What's the plan for the ApoB? I want clear, actionable steps. Is this a significant investment?",
+                "Elevated ApoB is a concern. What are the most effective, efficient interventions? What's the cost implication?",
+                "Understood on ApoB. Let's prioritize interventions. Are there any budget-friendly alternatives for dietary changes or supplements?",
+                "Given the ApoB results, what's the immediate, high-impact strategy? I need to know the financial implications and time commitment."
+            ],
+            "travel": [
+                "This sounds critical. I need a clear, minute-by-minute guide for my upcoming trip. How can we make it time-efficient?",
+                "My travel schedule is intense. What's the most time-efficient jet lag protocol? I need practical advice for on-the-go.",
+                "Preparing for travel. What are the key strategies to minimize disruption to my health, especially given my limited time?",
+                "Upcoming international travel. What specific protocols can I implement to mitigate jet lag and maintain my routine effectively?"
+            ],
+            "illness": [
+                "This is a major setback. The board meeting is critical. What's the immediate plan? I need to maximize my recovery output.",
+                "Feeling unwell. This is impacting my ability to perform. What's the fastest way to recover without compromising long-term health?",
+                "I'm experiencing symptoms. What's the Elyx protocol for this? I need to get back on track efficiently.",
+                "I'm feeling a dip in health. What's the recommended course of action to minimize downtime and prevent further impact on my schedule?"
+            ],
+            "recovery": [
+                "Good. I feel it. Let's get back to the plan.",
+                "Excellent. I'm seeing the positive effects. What's the next optimization?",
+                "Great news on recovery. I'm ready for the next challenge.",
+                "My recovery metrics are strong. What advanced strategies can we implement now to push further?"
+            ],
+            "piano": [
+                "I've always wanted to learn piano. From a health and performance perspective, is this a worthwhile use of my time?",
+                "Considering learning piano. What are the cognitive benefits, and how does it fit into my overall health investment strategy?",
+                "Is piano a good investment for cognitive longevity and stress? What's the commitment like?",
+                "I'm exploring new hobbies. Is learning piano a recommended activity for long-term brain health and stress reduction?"
+            ],
+            "poor_digestion": [
+                "I'm experiencing poor digestion. Any suggestions that are easy to integrate into my busy schedule?",
+                "What are some practical dietary adjustments for improving digestion, considering my travel and time constraints?",
+                "My digestion feels off. Are there any simple, effective strategies I can implement immediately?",
+                "Can you provide quick, actionable tips for better digestion that won't disrupt my routine?"
+            ],
+            "monetary_concern": [ # Rohan explicitly asks about cost
+                "I'm concerned about the cost of some recommendations. Can you suggest more budget-friendly alternatives?",
+                "How can we optimize for value without compromising results? Are there more economical options?",
+                "What's the return on investment for this, and are there less expensive but still effective options?",
+                "I need to balance health investments with financial prudence. What are some high-impact, low-cost recommendations?"
+            ],
+            "time_constraint": [ # Rohan explicitly asks about time
+                "I have very limited time. What's the most time-efficient way to achieve Y?",
+                "My schedule is packed. Can we focus on high-impact, low-time-commitment interventions?",
+                "What are some quick wins for health that fit into a demanding schedule?",
+                "I need strategies that deliver maximum health output for minimal time investment. Any suggestions?"
+            ],
+            "general_query": [
+                "Just checking in. Any new recommendations based on my overall progress?",
+                "What's the overarching strategy for the next phase of my health journey?",
+                "I'm curious about optimizing my current routine. Any thoughts on that?",
+                "What's the latest insight from my data? Any new areas of focus?"
+            ]
+        }
+
         # Determine Rohan's question based on prompt_context and avoid recent repetition
         chosen_key = None
         # Prioritize specific query types if context matches
@@ -478,7 +515,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             chosen_key = "time_constraint"
         else:
             # If no specific match, try to pick a general query not recently asked
-            possible_general_keys = [k for k in ROHAN_QUERY_POOL.keys() if k not in recently_asked_topic_keys and k != "initial_plan"]
+            possible_general_keys = [k for k in rohan_query_pool.keys() if k not in recently_asked_topic_keys and k != "initial_plan"]
             if possible_general_keys:
                 chosen_key = random.choice(possible_general_keys)
             else: # Fallback if all specific topics are in cool-down, or if it's truly generic
@@ -490,11 +527,11 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             msg['parts'][0]['text'] for msg in chat_history[-5:] # Check last 5 messages
             if msg['role'] == 'user' and 'parts' in msg and len(msg['parts']) > 0 and 'text' in msg['parts'][0]
         ]
-        available_questions_for_key = [q for q in ROHAN_QUERY_POOL[chosen_key] if q not in recent_rohan_messages_content]
+        available_questions_for_key = [q for q in rohan_query_pool[chosen_key] if q not in recent_rohan_messages_content]
         
         if not available_questions_for_key:
-            # If all specific questions for this key have been used recently, cycle through them
-            response_text = random.choice(ROHAN_QUERY_POOL[chosen_key])
+            # If all specific questions for this topic have been used recently, cycle through them
+            response_text = random.choice(rohan_query_pool[chosen_key])
         else:
             response_text = random.choice(available_questions_for_key)
         
@@ -581,7 +618,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             pillar_impact = "Pillar 4 (Structural Health)"
             next_steps = "Schedule movement assessment with Rachel via Ruby."
             sentiment = "analytical"
-        elif "stress levels" in last_rohan_message_lower and role == "Carla":
+        elif "stress" in last_rohan_message_lower and role == "Carla":
             response_text = random.choice([
                 "Rohan, Carla here. For immediate stress support, focus on consistent hydration and mindful eating. Avoiding processed snacks can also help. These are simple, low-cost dietary adjustments that integrate easily.",
                 "Carla. To combat stress and energy dips, prioritize hydration and mindful eating. Small, consistent efforts here yield significant benefits without major lifestyle overhauls or cost.",
@@ -605,7 +642,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             next_steps = "Perform couch stretch daily and report back on effectiveness; explore additional mobility drills."
             intervention_effect = "Initial relief, focus on long-term mobility." # Default for this intervention
             sentiment = "direct"
-        elif "diagnostic panel" in prompt_lower and role == "Ruby": # For initial diagnostic scheduling
+        elif "q1 diagnostic panel" in prompt_lower and role == "Ruby": # For initial diagnostic scheduling
             response_text = random.choice([
                 "Rohan, it's time to schedule your Q1 diagnostic panel. This comprehensive test will give us a baseline for your metabolic and hormonal health. We can arrange a phlebotomist to come to your office. Does next Tuesday morning work? This maximizes your convenience.",
                 "Your quarterly diagnostic is due. This panel is key to tracking your metabolic health. We can send a phlebotomist to your office for ultimate convenience. Let us know your availability next week.",
@@ -726,8 +763,8 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             ])
             decision_rationale = "Routine check-in / general response, emphasizing personalized care, value, and lifestyle integration."
             pillar_impact = "General"
-            monetary_factor = "General emphasis on value." # Still set for data, but less explicit in text
-            time_efficiency = "General emphasis on efficiency." # Still set for data, but less explicit in text
+            monetary_factor = "General emphasis on value."
+            time_efficiency = "General emphasis on efficiency."
             next_steps = "Continue with current plan; Elyx team will review for further optimizations."
             sentiment = "positive" # Default sentiment for general Elyx responses
 
@@ -1006,10 +1043,10 @@ def api_generate_journey():
 
         # Select a specific question for that topic, avoiding recent exact duplicates
         recent_user_messages_content = [
-            msg['content'] for msg in all_chat_messages[-5:] # Check last 5 messages in ALL chat history
-            if msg['sender'] == 'Rohan' # Filter for Rohan's messages
+            msg['content'].lower() for msg in all_chat_messages[-5:] # Check last 5 messages in ALL chat history
+            if msg['sender'] == 'Rohan'
         ]
-        available_questions_for_topic = [q for q in ROHAN_QUERY_POOL[chosen_topic] if q not in recent_user_messages_content]
+        available_questions_for_topic = [q for q in ROHAN_QUERY_POOL[chosen_topic] if q.lower() not in recent_user_messages_content]
         if not available_questions_for_topic:
             # If all specific questions for this topic have been used recently, cycle through them
             rohan_query = random.choice(ROHAN_QUERY_POOL[chosen_topic])
@@ -1034,7 +1071,7 @@ def api_generate_journey():
         elif any(k in rohan_query.lower() for k in ["whoop", "garmin", "hrv", "recovery", "sleep", "sleep apnea"]):
             responder = random.choice(["Advik", "Dr. Warren"])
         elif any(k in rohan_query.lower() for k in ["stress", "cognition", "focus", "meditation", "piano"]):
-            responder = random.choice(["Neel", "Advik", "Dr. Evans"])
+            responder = random.choice(["Neel", "Advik", "Dr. Evans"]) # Dr. Evans is an implicit persona
         elif any(k in rohan_query.lower() for k in ["diagnostic", "panel", "test", "scan", "mri", "dexa", "vo2"]):
             responder = "Ruby"
         elif any(k in rohan_query.lower() for k in ["monetary", "cost", "expensive", "budget", "roi"]):
@@ -1066,16 +1103,16 @@ def api_generate_journey():
         
         if is_significant_for_timeline:
             all_timeline_events.append({
-                "type": "message", "sender": "Rohan", "content": rohan_msg, "timestamp": format_ts(event_time),
-                "pillar": rohan_pillar, "relatedTo": chosen_topic,
+                "type": "message", "sender": "Rohan", "timestamp": format_ts(event_time),
+                "content": rohan_msg, "pillar": rohan_pillar, "relatedTo": chosen_topic,
                 "decisionRationale": rohan_rationale, "healthMetricsSnapshot": rohan_metrics,
                 "interventionEffect": rohan_effect, "monetaryFactor": rohan_monetary,
                 "timeEfficiency": rohan_time, "serviceInteractionType": rohan_interaction_type,
                 "specialistInvolved": rohan_specialist, "nextSteps": rohan_next_steps, "sentiment": rohan_sentiment
             })
             all_timeline_events.append({
-                "type": "message", "sender": responder, "content": team_reply_msg, "timestamp": format_ts(event_time + timedelta(hours=random.randint(1, 3))),
-                "pillar": pillar, "relatedTo": chosen_topic,
+                "type": "message", "sender": responder, "timestamp": format_ts(event_time + timedelta(hours=random.randint(1, 3))),
+                "content": team_reply_msg, "pillar": pillar, "relatedTo": chosen_topic,
                 "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
                 "interventionEffect": effect, "monetaryFactor": monetary,
                 "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
@@ -1092,30 +1129,102 @@ def api_generate_journey():
             sim_state["metrics"]["GlucoseAvg"] = random.randint(90, 105)
 
 
-    # Simulate general metric fluctuations (weekly drift)
-    sim_state["metrics"]["HRV"] = max(30, sim_state["metrics"]["HRV"] + random.randint(-3, 5))
-    sim_state["metrics"]["RestingHR"] = max(50, sim_state["metrics"]["RestingHR"] + random.randint(-1, 1))
-    sim_state["metrics"]["GlucoseAvg"] = random.randint(90, 105)
-    sim_state["metrics"]["RecoveryScore"] = max(20, min(95, sim_state["metrics"]["RecoveryScore"] + random.uniform(-3, 3)))
-    sim_state["metrics"]["DeepSleep"] = max(30, min(120, sim_state["metrics"]["DeepSleep"] + random.uniform(-10, 15)))
+    # Simulate specific events/concerns over time (these will always be added to timeline)
+    if week_index == 5: # Simulate initial back pain flare-up
+        msg_context = "suggest couch stretch for back pain"
+        msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team, team_sentiment = generate_llm_response("Rachel", msg_context, sim_state["metrics"], all_chat_messages, all_timeline_events, current_sim_date=current_week_start_date)
+        all_chat_messages.append({"sender": "Rachel", "content": msg, "timestamp": format_ts(current_week_start_date), "sentiment": team_sentiment, "serviceInteractionType": interaction_type, "specialistInvolved": specialist})
+        all_timeline_events.append({
+            "type": "message", "sender": "Rachel", "timestamp": format_ts(current_week_start_date),
+            "content": msg, "pillar": pillar, "relatedTo": "Back pain",
+            "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
+            "interventionEffect": effect, "monetaryFactor": monetary,
+            "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
+            "specialistInvolved": specialist, "nextSteps": next_steps_team, "sentiment": team_sentiment
+        })
+        all_timeline_events.append({
+            "type": "event", "eventId": "back_pain_intervention", "timestamp": format_ts(current_week_start_date),
+            "description": "Back pain intervention (couch stretch)", "details": "Addressing Rohan's reported lower back pain with targeted mobility.",
+            "decisionRationale": rationale, "healthMetricsSnapshot": sim_state["metrics"].copy(),
+            "interventionEffect": "Initial relief, focus on long-term mobility.",
+            "monetaryFactor": "No direct cost, time-efficient.", "timeEfficiency": "2-minute routine.",
+            "serviceInteractionType": "intervention_event", "specialistInvolved": "Rachel",
+            "nextSteps": "Perform couch stretch daily and report back on effectiveness."
+        })
+        sim_state["metrics"]["BackPain"] = "mild" # Simulate slight improvement
+
+    if week_index == 10: # Simulate a major illness setback
+        msg_context = "initiate sick day protocol due to viral infection"
+        msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team, team_sentiment = generate_llm_response("Dr. Warren", msg_context, sim_state["metrics"], all_chat_messages, all_timeline_events, current_sim_date=current_week_start_date)
+        all_chat_messages.append({"sender": "Dr. Warren", "content": msg, "timestamp": format_ts(current_week_start_date), "sentiment": team_sentiment, "serviceInteractionType": interaction_type, "specialistInvolved": specialist})
+        all_timeline_events.append({
+            "type": "message", "sender": "Dr. Warren", "timestamp": format_ts(current_week_start_date),
+            "content": msg, "pillar": pillar, "relatedTo": "Illness",
+            "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
+            "interventionEffect": effect, "monetaryFactor": monetary,
+            "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
+            "specialistInvolved": specialist, "nextSteps": next_steps_team, "sentiment": team_sentiment
+        })
+        all_timeline_events.append({
+            "type": "event", "eventId": "illness_setback", "timestamp": format_ts(current_week_start_date),
+            "description": "Major Illness Setback (Viral Infection)", "details": "Elyx Sick Day Protocol initiated, board meeting postponed.",
+            "decisionRationale": rationale, "healthMetricsSnapshot": sim_state["metrics"].copy(),
+            "interventionEffect": "Severe fatigue, recovery score dropped significantly.",
+            "monetaryFactor": "Potential business cost due to postponed meeting, but avoids higher future medical costs.",
+            "timeEfficiency": "Focus on radical rest, minimal time for other activities.",
+            "serviceInteractionType": "health_crisis_event", "specialistInvolved": "Dr. Warren, Ruby",
+            "nextSteps": "Engage Elyx Sick Day Protocol: rest, hydration, Ruby will reschedule meetings."
+        })
+        sim_state["metrics"]["RecoveryScore"] = 10 # Simulate very low recovery
+        sim_state["metrics"]["POTS_symptoms"] = "severe" # Worsen POTS
+
+    if week_index == 15: # Simulate a new health investment (piano)
+        msg_context = "add weekly piano practice as trackable goal"
+        msg, rationale, pillar, metrics_snap, effect, monetary, time_eff, interaction_type, specialist, next_steps_team, team_sentiment = generate_llm_response("Neel", msg_context, sim_state["metrics"], all_chat_messages, all_timeline_events, current_sim_date=current_week_start_date)
+        all_chat_messages.append({"sender": "Neel", "content": msg, "timestamp": format_ts(current_week_start_date), "sentiment": team_sentiment, "serviceInteractionType": interaction_type, "specialistInvolved": specialist})
+        all_timeline_events.append({
+            "type": "message", "sender": "Neel", "timestamp": format_ts(current_week_start_date),
+            "content": msg, "pillar": pillar, "relatedTo": "New Goal",
+            "decisionRationale": rationale, "healthMetricsSnapshot": metrics_snap,
+            "interventionEffect": effect, "monetaryFactor": monetary,
+            "timeEfficiency": time_eff, "serviceInteractionType": interaction_type,
+            "specialistInvolved": specialist, "nextSteps": next_steps_team, "sentiment": team_sentiment
+        })
+        all_timeline_events.append({
+            "type": "event", "eventId": "piano_goal_added", "timestamp": format_ts(current_week_start_date),
+            "description": "Weekly Piano Practice Added to Plan", "details": "Cognitive longevity and stress management investment.",
+            "decisionRationale": rationale, "healthMetricsSnapshot": sim_state["metrics"].copy(),
+            "interventionEffect": "Expected long-term cognitive and stress resilience benefits.",
+            "monetaryFactor": "Initial cost of piano/lessons, long-term non-monetary benefit.",
+            "timeEfficiency": "Integrated into weekly routine, flexible scheduling.",
+            "serviceInteractionType": "goal_setting_event", "specialistInvolved": "Neel",
+            "nextSteps": "Begin weekly piano practice; track subjective focus and HRV."
+        })
+    
+    # Simulate general metric fluctuations
+    sim_state["metrics"]["HRV"] = max(30, sim_state["metrics"]["HRV"] + random.randint(-5, 7)) 
+    sim_state["metrics"]["RestingHR"] = max(50, sim_state["metrics"]["RestingHR"] + random.randint(-2, 2))
+    sim_state["metrics"]["GlucoseAvg"] = random.randint(90, 105) 
+    sim_state["metrics"]["RecoveryScore"] = max(20, min(95, sim_state["metrics"]["RecoveryScore"] + random.randint(-8, 10))) 
+    sim_state["metrics"]["DeepSleep"] = max(30, min(120, sim_state["metrics"]["DeepSleep"] + random.randint(-15, 20))) 
     
     # More dynamic POTS/BackPain status changes
-    if sim_state["metrics"]["POTS_symptoms"] == "severe" and random.random() < 0.4:
+    if sim_state["metrics"]["POTS_symptoms"] == "severe" and random.random() < 0.4: 
         sim_state["metrics"]["POTS_symptoms"] = "moderate"
     elif sim_state["metrics"]["POTS_symptoms"] == "moderate" and random.random() < 0.4:
         sim_state["metrics"]["POTS_symptoms"] = "mild"
-    elif sim_state["metrics"]["POTS_symptoms"] == "mild" and random.random() < 0.1:
+    elif sim_state["metrics"]["POTS_symptoms"] == "mild" and random.random() < 0.1: 
          sim_state["metrics"]["POTS_symptoms"] = random.choice(["moderate", "severe"])
     
-    if sim_state["metrics"]["BackPain"] == "severe" and random.random() < 0.4:
+    if sim_state["metrics"]["BackPain"] == "severe" and random.random() < 0.4: 
         sim_state["metrics"]["BackPain"] = "moderate"
     elif sim_state["metrics"]["BackPain"] == "moderate" and random.random() < 0.4:
         sim_state["metrics"]["BackPain"] = "mild"
-    elif sim_state["metrics"]["BackPain"] == "mild" and random.random() < 0.1:
+    elif sim_state["metrics"]["BackPain"] == "mild" and random.random() < 0.1: 
         sim_state["metrics"]["BackPain"] = random.choice(["moderate", "severe"])
 
+    # Return both lists in a single JSON object
     return jsonify({"timeline_events": all_timeline_events, "chat_messages": all_chat_messages})
-
 
 # -------------------------
 # Explain decision endpoint
@@ -1128,32 +1237,17 @@ def api_explain_decision():
     
     if not query:
         return jsonify({"error": "Query is required."}), 400
-
-    query_lower = query.lower()
-
-    # Try matching to a journey item first (keyword-based and full-text)
+    
     relevant_item = None
-    # Search in timeline_events for direct matches or strong keyword relevance
-    for item in reversed(journey_data_context): # Search recent history first
-        content_to_search = " ".join([
-            str(item.get("content", "")),
-            str(item.get("description", "")),
-            str(item.get("details", "")),
-            str(item.get("decisionRationale", ""))
-        ]).lower()
-        
-        # Direct phrase match
-        if query_lower in content_to_search:
+    query_lower = query.lower()
+    
+    searchable_items = [item for item in journey_data_context if 'decisionRationale' in item and item['decisionRationale']]
+    
+    for item in reversed(searchable_items): 
+        content_to_search = item.get('content', '') + ' ' + item.get('description', '') + ' ' + item.get('details', '') + ' ' + item.get('decisionRationale', '')
+        if query_lower in content_to_search.lower():
             relevant_item = item
-            break
-        
-        # Check for keyword overlap if no direct phrase match
-        query_keywords = set(query_lower.split())
-        item_keywords = set(content_to_search.split())
-        if len(query_keywords.intersection(item_keywords)) >= 2: # At least two common words
-             if item.get('decisionRationale'): # Prioritize items with explicit rationale
-                 relevant_item = item
-                 break
+            break 
 
     explanation_text = "I'm sorry, I couldn't find a specific decision matching your query in your journey history. Please try rephrasing or asking about a specific intervention."
     rationale = None
@@ -1163,20 +1257,20 @@ def api_explain_decision():
     monetary = None
     time_eff = None
     specialist = None
-    next_steps = None
+    next_steps = None 
     sentiment = "neutral" # Default sentiment for explanation
 
     if relevant_item:
-        explanation_text = relevant_item.get('content') or relevant_item.get('description') or relevant_item.get('details') or "We made a decision here based on available data."
+        explanation_text = relevant_item.get('content') or relevant_item.get('description') or relevant_item.get('details')
         rationale = relevant_item.get('decisionRationale')
         pillar = relevant_item.get('pillar')
         metrics_snap = relevant_item.get('healthMetricsSnapshot')
         effect = relevant_item.get('interventionEffect')
         monetary = relevant_item.get('monetaryFactor')
         time_eff = relevant_item.get('timeEfficiency')
-        specialist = relevant_item.get('specialistInvolved') or relevant_item.get('specialist')
-        next_steps = relevant_item.get('nextSteps')
-        sentiment = relevant_item.get('sentiment', 'neutral')
+        specialist = relevant_item.get('specialistInvolved')
+        next_steps = relevant_item.get('nextSteps') 
+        sentiment = relevant_item.get('sentiment', 'neutral') # Get sentiment from the found item
     else:
         # Fallback to general keyword responses if no specific journey item is found
         # This part will now also return sentiment
@@ -1189,7 +1283,7 @@ def api_explain_decision():
         )
     
     # Build the formatted explanation string
-    final_text = f"{explanation_text}\n\n"
+    final_text = f"{empathetic_prefix}{explanation_text}\n\n" # Use empathetic prefix here
     if rationale:
         final_text += f"**Rationale:** {rationale}\n"
     if pillar:
@@ -1202,7 +1296,7 @@ def api_explain_decision():
         final_text += f"**Time Efficiency:** {time_eff}\n"
     if specialist:
         final_text += f"**Specialist Involved:** {specialist}\n"
-    if next_steps:
+    if next_steps: 
         final_text += f"**Following Steps:** {next_steps}\n"
     if metrics_snap:
         try:
@@ -1234,4 +1328,3 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))
     debug_flag = os.environ.get("FLASK_DEBUG", "0") == "1"
     app.run(host='0.0.0.0', port=port, debug=debug_flag)
-```
