@@ -3,9 +3,9 @@
     "message_id": "msg_001",
     "timestamp": "2025-01-15T10:00:00Z",
     "sender_id": "care_coordinator_maria",
-    "sender_name": "Maria (Care Coordinator)",
+    "sender_name": "Maria (CC)",
     "message_type": "text",
-    "content": "Hi Sarah, welcome to Elyx! I'm Maria, your Care Coordinator. I'll be your main point of contact for scheduling and any questions. To start, we've scheduled your initial consultation with Dr. Chen for Jan 17th at 2 PM. Does that work for you?",
+    "content": "Hi Sarah, welcome to Elyx! I'm Maria, your Care Coordinator. To start, we've scheduled your initial consultation with Dr. Chen for Jan 17th at 2 PM. Does that work?",
     "tags": ["onboarding", "welcome", "scheduling"],
     "linked_decision_id": null
   },
@@ -15,7 +15,7 @@
     "sender_id": "member_sarah_tan",
     "sender_name": "Sarah Tan",
     "message_type": "text",
-    "content": "Hi Maria, thanks. Yes, Jan 17th at 2 PM is perfect. Looking forward to it.",
+    "content": "Hi Maria, thanks. Yes, Jan 17th at 2 PM is perfect.",
     "tags": ["onboarding", "scheduling"],
     "linked_decision_id": null
   },
@@ -25,8 +25,8 @@
     "sender_id": "dr_chen",
     "sender_name": "Dr. Chen",
     "message_type": "text",
-    "content": "Great to meet you, Sarah. Following our consultation, I've ordered a comprehensive diagnostic blood panel for you. Maria will share the details for booking the test at a local clinic in Singapore. This will give us a solid baseline for your cholesterol and other key biomarkers.",
-    "tags": ["consultation", "diagnostic_test", "biomarker", "cholesterol", "journey_event", "event_diagnostic"],
+    "content": "Great to meet you, Sarah. Following up on our call, I've ordered a comprehensive diagnostic panel. This will give us a solid baseline for your cholesterol and other key biomarkers.",
+    "tags": ["consultation", "diagnostic_test", "cholesterol", "journey_event", "event_diagnostic"],
     "linked_decision_id": null
   },
   {
@@ -45,12 +45,22 @@
     "sender_id": "coach_david",
     "sender_name": "David (Coach)",
     "message_type": "plan_update",
-    "content": "Hi Sarah, I'm David, your health coach. Based on your goals and Dr. Chen's review of your high LDL, here is your initial 2-week plan: 3x weekly 30-min brisk walks, reduce saturated fat intake by replacing one red meat meal with fish, and aim for 7-8 hours of sleep. We'll track progress via your wearable.",
-    "tags": ["plan_update", "exercise", "nutrition", "sleep", "journey_event", "event_plan"],
+    "content": "Hi Sarah, I'm David, your health coach. Based on your high LDL, here is your initial plan: 3x weekly 30-min brisk walks, reduce saturated fat intake, and aim for 7-8 hours of sleep.",
+    "tags": ["plan_update", "exercise", "nutrition", "journey_event", "event_plan"],
     "linked_decision_id": null
   },
   {
     "message_id": "msg_006",
+    "timestamp": "2025-01-29T18:00:00Z",
+    "sender_id": "member_sarah_tan",
+    "sender_name": "Sarah Tan",
+    "message_type": "text",
+    "content": "This is going to be tough with my work schedule, but I'll do my best. The diet part seems challenging.",
+    "tags": ["feedback", "nutrition"],
+    "linked_decision_id": null
+  },
+  {
+    "message_id": "msg_007",
     "timestamp": "2025-02-05T18:00:00Z",
     "sender_id": "member_sarah_tan",
     "sender_name": "Sarah Tan",
@@ -60,27 +70,57 @@
     "linked_decision_id": null
   },
   {
-    "message_id": "msg_007",
+    "message_id": "msg_008",
     "timestamp": "2025-02-06T10:00:00Z",
     "sender_id": "coach_david",
     "sender_name": "David (Coach)",
     "message_type": "plan_update",
-    "content": "Of course. For your London trip, let's switch to: 3x 20-min treadmill interval sessions and 2x 15-min bodyweight strength circuits. I've also added some tips for making healthier choices at business dinners. Enjoy the trip!",
-    "tags": ["plan_update", "travel", "exercise", "nutrition", "journey_event", "event_travel"],
+    "content": "Of course. For your London trip, let's switch to: 3x 20-min treadmill interval sessions and 2x 15-min bodyweight circuits. I've also added tips for healthier choices at business dinners. Enjoy!",
+    "tags": ["plan_update", "travel", "exercise", "journey_event", "event_travel"],
     "linked_decision_id": null
   },
   {
-    "message_id": "msg_008",
+    "message_id": "msg_009",
+    "timestamp": "2025-02-15T12:00:00Z",
+    "sender_id": "system_elyx",
+    "sender_name": "Elyx System",
+    "message_type": "report",
+    "content": "Weekly Report: Wearable data shows an average of 3/3 workouts completed. Average sleep duration: 6.5 hours.",
+    "tags": ["report", "wearable_data", "sleep"],
+    "linked_decision_id": null
+  },
+  {
+    "message_id": "msg_010",
+    "timestamp": "2025-02-20T15:00:00Z",
+    "sender_id": "member_sarah_tan",
+    "sender_name": "Sarah Tan",
+    "message_type": "text",
+    "content": "I saw an ad for Krill Oil. Is that something I should be taking for my cholesterol?",
+    "tags": ["query", "supplements", "cholesterol"],
+    "linked_decision_id": null
+  },
+  {
+    "message_id": "msg_011",
+    "timestamp": "2025-02-21T11:00:00Z",
+    "sender_id": "dr_chen",
+    "sender_name": "Dr. Chen",
+    "message_type": "text",
+    "content": "Hi Sarah, good question. While some studies on omega-3s (like krill oil) are promising for triglycerides, their effect on LDL is minimal. For now, let's stick to the foundational diet and exercise plan before adding supplements.",
+    "tags": ["consultation", "supplements", "cholesterol"],
+    "linked_decision_id": null
+  },
+  {
+    "message_id": "msg_012",
     "timestamp": "2025-03-20T16:00:00Z",
     "sender_id": "dr_chen",
     "sender_name": "Dr. Chen",
     "message_type": "text",
-    "content": "Hi Sarah, we've been monitoring your progress. While your adherence to diet and exercise is good, your LDL has only decreased to 145 mg/dL. To aggressively lower your long-term cardiovascular risk, I'd like to discuss starting a low-dose statin, Rosuvastatin 5mg. Let's schedule a brief call.",
+    "content": "Hi Sarah, we've been monitoring your progress. While your adherence is good, your LDL has only decreased to 145 mg/dL. To aggressively lower your risk, I'd like to discuss starting a low-dose statin, Rosuvastatin 5mg. Let's schedule a call.",
     "tags": ["consultation", "cholesterol", "medication", "biomarker_ldl", "decision_medication", "rationale_cholesterol"],
     "linked_decision_id": "decision_rosuvastatin_01"
   },
   {
-    "message_id": "msg_009",
+    "message_id": "msg_013",
     "timestamp": "2025-03-21T19:00:00Z",
     "sender_id": "member_sarah_tan",
     "sender_name": "Sarah Tan",
@@ -90,17 +130,17 @@
     "linked_decision_id": "decision_rosuvastatin_01"
   },
   {
-    "message_id": "msg_010",
+    "message_id": "msg_014",
     "timestamp": "2025-03-22T11:00:00Z",
     "sender_id": "dr_chen",
     "sender_name": "Dr. Chen",
     "message_type": "text",
-    "content": "A valid concern. We start with the lowest possible dose to minimize side effects, which are rare at this level. Given your numbers, medication is the most effective and evidence-based next step. We can monitor you closely. Shall we try it for 3 months and re-test?",
+    "content": "A valid concern. We start with the lowest possible dose to minimize side effects, which are rare at this level. Given your numbers, medication is the most effective next step. We can monitor you closely. Shall we try it for 3 months and re-test?",
     "tags": ["consultation", "medication", "rationale_cholesterol"],
     "linked_decision_id": "decision_rosuvastatin_01"
   },
   {
-    "message_id": "msg_011",
+    "message_id": "msg_015",
     "timestamp": "2025-03-22T13:00:00Z",
     "sender_id": "member_sarah_tan",
     "sender_name": "Sarah Tan",
@@ -110,7 +150,7 @@
     "linked_decision_id": "decision_rosuvastatin_01"
   },
   {
-    "message_id": "msg_012",
+    "message_id": "msg_016",
     "timestamp": "2025-03-23T09:00:00Z",
     "sender_id": "system_elyx",
     "sender_name": "Elyx System",
@@ -120,7 +160,7 @@
     "linked_decision_id": "decision_rosuvastatin_01"
   },
   {
-    "message_id": "msg_013",
+    "message_id": "msg_017",
     "timestamp": "2025-04-18T09:30:00Z",
     "sender_id": "system_elyx",
     "sender_name": "Elyx System",
@@ -130,7 +170,27 @@
     "linked_decision_id": null
   },
   {
-    "message_id": "msg_014",
+    "message_id": "msg_018",
+    "timestamp": "2025-04-19T10:00:00Z",
+    "sender_id": "dr_chen",
+    "sender_name": "Dr. Chen",
+    "message_type": "text",
+    "content": "Hi Sarah, great progress on your latest labs! The combination of lifestyle changes and the low-dose statin is working well. How are you feeling?",
+    "tags": ["consultation", "positive_feedback", "biomarker_ldl"],
+    "linked_decision_id": null
+  },
+  {
+    "message_id": "msg_019",
+    "timestamp": "2025-04-19T12:00:00Z",
+    "sender_id": "member_sarah_tan",
+    "sender_name": "Sarah Tan",
+    "message_type": "text",
+    "content": "Feeling good, no side effects to report. Glad to see the numbers moving in the right direction!",
+    "tags": ["feedback", "medication"],
+    "linked_decision_id": null
+  },
+  {
+    "message_id": "msg_020",
     "timestamp": "2025-05-15T18:00:00Z",
     "sender_id": "member_sarah_tan",
     "sender_name": "Sarah Tan",
@@ -140,17 +200,37 @@
     "linked_decision_id": "decision_stress_plan_01"
   },
   {
-    "message_id": "msg_015",
+    "message_id": "msg_021",
     "timestamp": "2025-05-16T10:00:00Z",
     "sender_id": "coach_david",
     "sender_name": "David (Coach)",
     "message_type": "plan_update",
-    "content": "Thanks for sharing, Sarah. I see the dip in your sleep data. Let's shift focus. For the next 2 weeks, we'll replace one cardio session with a 20-min guided meditation and a light walk. The goal is to manage cortisol, not push for performance. Your body needs recovery.",
-    "tags": ["plan_update", "stress", "sleep", "meditation", "exercise", "journey_event", "event_stress", "rationale_stress"],
+    "content": "Thanks for sharing, Sarah. I see the dip in your sleep data. Let's shift focus. For the next 2 weeks, we'll replace one cardio session with a 20-min guided meditation and a light walk. The goal is to manage cortisol, not push for performance.",
+    "tags": ["plan_update", "stress", "sleep", "meditation", "journey_event", "event_stress", "rationale_stress"],
     "linked_decision_id": "decision_stress_plan_01"
   },
   {
-    "message_id": "msg_016",
+    "message_id": "msg_022",
+    "timestamp": "2025-06-01T14:00:00Z",
+    "sender_id": "member_sarah_tan",
+    "sender_name": "Sarah Tan",
+    "message_type": "text",
+    "content": "The meditation is surprisingly helpful. I actually feel a bit calmer during the day.",
+    "tags": ["feedback", "stress", "meditation"],
+    "linked_decision_id": null
+  },
+  {
+    "message_id": "msg_023",
+    "timestamp": "2025-06-20T10:00:00Z",
+    "sender_id": "coach_david",
+    "sender_name": "David (Coach)",
+    "message_type": "plan_update",
+    "content": "Glad to hear it! Now that your work stress has eased up, let's re-introduce some intensity. We'll add 2 days of resistance training to build muscle, which is great for metabolic health.",
+    "tags": ["plan_update", "exercise", "strength_training", "journey_event", "event_plan"],
+    "linked_decision_id": null
+  },
+  {
+    "message_id": "msg_024",
     "timestamp": "2025-07-20T09:30:00Z",
     "sender_id": "system_elyx",
     "sender_name": "Elyx System",
@@ -160,23 +240,43 @@
     "linked_decision_id": null
   },
   {
-    "message_id": "msg_017",
+    "message_id": "msg_025",
     "timestamp": "2025-07-21T11:00:00Z",
     "sender_id": "dr_chen",
     "sender_name": "Dr. Chen",
     "message_type": "text",
-    "content": "Excellent news, Sarah! Your LDL is now in the optimal range. This is a fantastic result from the combination of medication and consistent lifestyle changes. Let's maintain the current plan and re-test in another 3 months.",
+    "content": "Excellent news, Sarah! Your LDL is now in the optimal range. This is a fantastic result. Let's maintain the current plan and re-test in another 3 months.",
     "tags": ["consultation", "biomarker", "cholesterol", "positive_feedback"],
     "linked_decision_id": null
   },
   {
-    "message_id": "msg_018",
-    "timestamp": "2025-08-15T14:00:00Z",
+    "message_id": "msg_026",
+    "timestamp": "2025-08-05T16:00:00Z",
     "sender_id": "member_sarah_tan",
     "sender_name": "Sarah Tan",
     "message_type": "text",
-    "content": "Feeling so much more energetic these days. The stress management techniques really helped. Thank you!",
-    "tags": ["feedback", "positive_feedback"],
+    "content": "Feeling so much more energetic these days. The strength training is making a big difference. Thank you!",
+    "tags": ["feedback", "positive_feedback", "exercise"],
+    "linked_decision_id": null
+  },
+  {
+    "message_id": "msg_027",
+    "timestamp": "2025-08-15T09:00:00Z",
+    "sender_id": "system_elyx",
+    "sender_name": "Elyx System",
+    "message_type": "report",
+    "content": "Weekly Report: 4/4 workouts completed. Average sleep duration: 7.2 hours. Heart Rate Variability (HRV) is up 10% from last month.",
+    "tags": ["report", "wearable_data", "sleep", "hrv", "positive_feedback"],
+    "linked_decision_id": null
+  },
+  {
+    "message_id": "msg_028",
+    "timestamp": "2025-08-20T11:00:00Z",
+    "sender_id": "care_coordinator_maria",
+    "sender_name": "Maria (CC)",
+    "message_type": "text",
+    "content": "Hi Sarah, just checking in as we approach the end of your 8-month journey. We'll be scheduling a review with Dr. Chen and David to go over your incredible progress and plan for the future.",
+    "tags": ["scheduling", "review"],
     "linked_decision_id": null
   }
 ]
