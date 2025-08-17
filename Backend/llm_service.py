@@ -595,7 +595,7 @@ def generate_week_events(week_index, current_date, state):
     return events_sorted
 
 # -------------------------
-# --- FIX --- Main generate function and new API endpoint
+# Main generate function and consolidated API endpoint
 # -------------------------
 def generate_full_journey():
     """
@@ -625,63 +625,14 @@ def generate_full_journey():
 
     return all_events
 
-@app.route("/api/generate-full-journey", methods=["GET"])
-def get_full_journey():
-    """
-    This new endpoint correctly calls the main generator to get the full, dynamic journey.
+@app.route("/api/journey", methods=["GET"])
+def get_journey():
+    """ 
+    This is now the main endpoint. It correctly calls the full journey generator
+    to return the complete, dynamic conversation history.
     """
     journey_data = generate_full_journey()
     return jsonify(journey_data)
-
-
-# -------------------------
-# Original journey summary endpoint (now for milestones only)
-# -------------------------
-@app.route("/api/journey", methods=["GET"])
-def get_journey():
-    """ This endpoint now correctly serves its purpose of providing a static, high-level summary. """
-    return jsonify(generate_journey_summary(user_name="Rohan Patel"))
-
-
-def generate_journey_summary(user_name="Rohan Patel"):
-    """Generate a milestone-only journey (no chat dumps).
-    Focused on significant results and events only.
-    """
-    now = datetime.now()
-    journey = []
-
-    milestones = [
-        # Diagnostics
-        f"{user_name} completed the first full diagnostic panel — ApoB was flagged at 106 mg/dL, leading to a fiber + cardio protocol.",
-        f"{user_name} repeated diagnostic tests at 3 months — ApoB improved to 98 mg/dL, confirming plan effectiveness.",
-        f"{user_name} underwent VO₂ max testing — score improved by 12%, supporting aerobic training progression.",
-        
-        # Travel adaptation
-        f"{user_name} trialed travel recovery protocol. Post-flight HRV recovery was 20% faster than baseline.",
-        
-        # Illness / recovery
-        f"{user_name} successfully navigated a viral infection using Elyx Sick Day Protocol — recovery was 3 days faster than expected.",
-        
-        # Sleep & cognitive health
-        f"{user_name} trialed blue-light glasses and circadian realignment strategies — recorded best deep sleep metrics to date.",
-        f"{user_name} committed to piano training as a cognitive longevity goal, supported by Sarah and Dr. Warren.",
-        
-        # Nutrition & lifestyle
-        f"{user_name} integrated personal chef Javier into nutrition planning — adherence rose to ~80% with travel-proof options.",
-        
-        # Strength / performance
-        f"{user_name} baseline DEXA and strength scan completed — muscle mass gain of +1.5 kg over 8 weeks.",
-        f"{user_name} initiated Keynote Peak Performance Protocol for major work event, aligning all pillars (nutrition, sleep, recovery).",
-    ]
-
-    # Only log each once (no duplicates, no filler)
-    for i, event in enumerate(milestones):
-        journey.append({
-            "timestamp": (now - timedelta(days=i*10)).strftime("%A, %B %d, %Y"),
-            "entry": event
-        })
-
-    return list(reversed(journey))
 
 # -------------------------
 # Explain decision endpoint
