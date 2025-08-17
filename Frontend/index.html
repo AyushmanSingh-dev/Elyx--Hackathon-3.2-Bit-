@@ -82,7 +82,6 @@
                 setIsLoading(true);
                 setError(null);
                 try {
-                    // CORRECTED: Use GET method and the /api/journey endpoint
                     const response = await fetch(`${BACKEND_API_URL}/api/journey`);
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}. Is the backend server running?`);
@@ -97,7 +96,7 @@
                 } finally {
                     setIsLoading(false);
                 }
-            }, []);
+            }, []); // Empty dependency array means this function is created once
 
             // --- DECISION QUERY ---
             const handleDecisionQuery = async () => {
