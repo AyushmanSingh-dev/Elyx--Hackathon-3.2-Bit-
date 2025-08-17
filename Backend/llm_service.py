@@ -338,15 +338,15 @@ def detect_sentiment(text):
         return "nonchalant"
     
     # Elyx team specific tones based on their persona
-    if "dr. warren" in text.lower():
+    if "dr. warren" in t:
         return "authoritative"
-    if "advik" in text.lower():
+    if "advik" in t:
         return "analytical"
-    if "carla" in text.lower():
+    if "carla" in t:
         return "practical"
-    if "rachel" in text.lower():
+    if "rachel" in t:
         return "direct"
-    if "ruby" in text.lower() or "neel" in text.lower():
+    if "ruby" in t or "neel" in t:
         return "positive" # Concierge roles are generally positive
 
     return "neutral"
@@ -384,6 +384,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
     # Clean up old topics from memory
     if current_sim_date:
         global ROHAN_ASKED_TOPICS_MEMORY
+        # Filter out topics older than MEMORY_RETENTION_WEEKS
         ROHAN_ASKED_TOPICS_MEMORY = [
             (topic, ts) for topic, ts in ROHAN_ASKED_TOPICS_MEMORY
             if (current_sim_date - ts).days / 7 < MEMORY_RETENTION_WEEKS
@@ -642,7 +643,7 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             next_steps = "Perform couch stretch daily and report back on effectiveness; explore additional mobility drills."
             intervention_effect = "Initial relief, focus on long-term mobility." # Default for this intervention
             sentiment = "direct"
-        elif "q1 diagnostic panel" in prompt_lower and role == "Ruby": # For initial diagnostic scheduling
+        elif "diagnostic panel" in prompt_lower and role == "Ruby": # For initial diagnostic scheduling
             response_text = random.choice([
                 "Rohan, it's time to schedule your Q1 diagnostic panel. This comprehensive test will give us a baseline for your metabolic and hormonal health. We can arrange a phlebotomist to come to your office. Does next Tuesday morning work? This maximizes your convenience.",
                 "Your quarterly diagnostic is due. This panel is key to tracking your metabolic health. We can send a phlebotomist to your office for ultimate convenience. Let us know your availability next week.",
@@ -763,8 +764,8 @@ def generate_llm_response(role, prompt_context, current_metrics, chat_history, j
             ])
             decision_rationale = "Routine check-in / general response, emphasizing personalized care, value, and lifestyle integration."
             pillar_impact = "General"
-            monetary_factor = "General emphasis on value."
-            time_efficiency = "General emphasis on efficiency."
+            monetary_factor = "General emphasis on value." # Still set for data, but less explicit in text
+            time_efficiency = "General emphasis on efficiency." # Still set for data, but less explicit in text
             next_steps = "Continue with current plan; Elyx team will review for further optimizations."
             sentiment = "positive" # Default sentiment for general Elyx responses
 
@@ -803,7 +804,7 @@ def api_generate_journey():
     all_chat_messages.append({"sender": "Rohan", "content": rohan_msg, "timestamp": format_ts(START_DATE), "sentiment": rohan_sentiment, "serviceInteractionType": rohan_interaction_type, "specialistInvolved": rohan_specialist})
     
     ruby_msg, ruby_rationale, ruby_pillar, ruby_metrics, ruby_effect, ruby_monetary, ruby_time, ruby_interaction_type, ruby_specialist, ruby_next_steps, ruby_sentiment = generate_llm_response("Ruby", "welcome Rohan and acknowledge concerns", sim_state["metrics"], all_chat_messages, all_timeline_events, current_sim_date=START_DATE + timedelta(minutes=5))
-    all_chat_messages.append({"sender": "Ruby", "content": ruby_msg, "timestamp": format_ts(START_DATE + timedelta(minutes=5)), "sentiment": ruby_sentiment, "serviceInteractionType": ruby_interaction_type, "specialistInvolved": ruby_specialist})
+    all_chat_messages.append({"sender": "Elyx", "content": ruby_msg, "timestamp": format_ts(START_DATE + timedelta(minutes=5)), "sentiment": ruby_sentiment, "serviceInteractionType": ruby_interaction_type, "specialistInvolved": ruby_specialist})
     
     # Onboarding event is a major timeline event
     all_timeline_events.append({
@@ -1202,25 +1203,25 @@ def api_generate_journey():
         })
     
     # Simulate general metric fluctuations
-    sim_state["metrics"]["HRV"] = max(30, sim_state["metrics"]["HRV"] + random.randint(-5, 7)) 
-    sim_state["metrics"]["RestingHR"] = max(50, sim_state["metrics"]["RestingHR"] + random.randint(-2, 2))
-    sim_state["metrics"]["GlucoseAvg"] = random.randint(90, 105) 
-    sim_state["metrics"]["RecoveryScore"] = max(20, min(95, sim_state["metrics"]["RecoveryScore"] + random.randint(-8, 10))) 
-    sim_state["metrics"]["DeepSleep"] = max(30, min(120, sim_state["metrics"]["DeepSleep"] + random.randint(-15, 20))) 
+    sim_state["metrics"]["HRV"] = max(30, sim_state["metrics"]["HRV"] + random.randint(-3, 5)) # Adjusted range
+    sim_state["metrics"]["RestingHR"] = max(50, sim_state["metrics"]["RestingHR"] + random.randint(-1, 1))
+    sim_state["metrics"]["GlucoseAvg"] = random.randint(90, 105)
+    sim_state["metrics"]["RecoveryScore"] = max(20, min(95, sim_state["metrics"]["RecoveryScore"] + random.randint(-5, 8)))
+    sim_state["metrics"]["DeepSleep"] = max(30, min(120, sim_state["metrics"]["DeepSleep"] + random.randint(-10, 15)))
     
     # More dynamic POTS/BackPain status changes
-    if sim_state["metrics"]["POTS_symptoms"] == "severe" and random.random() < 0.4: 
+    if sim_state["metrics"]["POTS_symptoms"] == "severe" and random.random() < 0.4:
         sim_state["metrics"]["POTS_symptoms"] = "moderate"
     elif sim_state["metrics"]["POTS_symptoms"] == "moderate" and random.random() < 0.4:
         sim_state["metrics"]["POTS_symptoms"] = "mild"
-    elif sim_state["metrics"]["POTS_symptoms"] == "mild" and random.random() < 0.1: 
+    elif sim_state["metrics"]["POTS_symptoms"] == "mild" and random.random() < 0.1:
          sim_state["metrics"]["POTS_symptoms"] = random.choice(["moderate", "severe"])
     
-    if sim_state["metrics"]["BackPain"] == "severe" and random.random() < 0.4: 
+    if sim_state["metrics"]["BackPain"] == "severe" and random.random() < 0.4:
         sim_state["metrics"]["BackPain"] = "moderate"
     elif sim_state["metrics"]["BackPain"] == "moderate" and random.random() < 0.4:
         sim_state["metrics"]["BackPain"] = "mild"
-    elif sim_state["metrics"]["BackPain"] == "mild" and random.random() < 0.1: 
+    elif sim_state["metrics"]["BackPain"] == "mild" and random.random() < 0.1:
         sim_state["metrics"]["BackPain"] = random.choice(["moderate", "severe"])
 
     # Return both lists in a single JSON object
@@ -1233,7 +1234,8 @@ def api_generate_journey():
 def api_explain_decision():
     data = request.json or {}
     query = (data.get('query') or "").strip()
-    journey_data_context = data.get('journeyData', []) # This is actually the timeline_events from frontend
+    # journey_data_context from frontend is actually timeline_events
+    journey_data_context = data.get('journeyData', []) 
     
     if not query:
         return jsonify({"error": "Query is required."}), 400
@@ -1241,13 +1243,29 @@ def api_explain_decision():
     relevant_item = None
     query_lower = query.lower()
     
+    # Search in timeline_events for direct matches or strong keyword relevance
     searchable_items = [item for item in journey_data_context if 'decisionRationale' in item and item['decisionRationale']]
     
-    for item in reversed(searchable_items): 
-        content_to_search = item.get('content', '') + ' ' + item.get('description', '') + ' ' + item.get('details', '') + ' ' + item.get('decisionRationale', '')
-        if query_lower in content_to_search.lower():
+    for item in reversed(searchable_items): # Search recent history first
+        content_to_search = " ".join([
+            str(item.get("content", "")),
+            str(item.get("description", "")),
+            str(item.get("details", "")),
+            str(item.get("decisionRationale", ""))
+        ]).lower()
+        
+        # Direct phrase match
+        if query_lower in content_to_search:
             relevant_item = item
-            break 
+            break
+        
+        # Check for keyword overlap if no direct phrase match
+        query_keywords = set(query_lower.split())
+        item_keywords = set(content_to_search.split())
+        if len(query_keywords.intersection(item_keywords)) >= 2: # At least two common words
+             if item.get('decisionRationale'): # Prioritize items with explicit rationale
+                 relevant_item = item
+                 break
 
     explanation_text = "I'm sorry, I couldn't find a specific decision matching your query in your journey history. Please try rephrasing or asking about a specific intervention."
     rationale = None
@@ -1279,11 +1297,30 @@ def api_explain_decision():
             prompt_context=query,
             current_metrics=CURRENT_HEALTH_METRICS, # Use current global metrics as context
             chat_history=[], # Not relevant for this direct explanation
-            journey_data_so_far=[] # Not relevant for this direct explanation
+            journey_data_so_far=[], # Not relevant for this direct explanation
+            current_sim_date=datetime.now() # Pass current datetime for memory cleanup
         )
     
     # Build the formatted explanation string
-    final_text = f"{empathetic_prefix}{explanation_text}\n\n" # Use empathetic prefix here
+    # Add empathetic prefix only if it's a general fallback, not for direct historical matches
+    if not relevant_item:
+        empathetic_prefix = ""
+        # Re-detect sentiment for the query, as it's a direct user input for this endpoint
+        query_sentiment = detect_sentiment(query)
+        if query_sentiment in ["angry", "frustrated"]:
+            empathetic_prefix = "I understand your frustration — that's valid. Here's what happened and why: "
+        elif query_sentiment == "sad":
+            empathetic_prefix = "I'm sorry this has been discouraging. Here's the reasoning and the next steps: "
+        elif query_sentiment == "curious":
+            empathetic_prefix = "Good question — here's a clear explanation: "
+        elif query_sentiment == "nonchalant":
+            empathetic_prefix = "Sure — here's the reasoning: "
+        else:
+            empathetic_prefix = "Here's the reasoning: "
+        final_text = f"{empathetic_prefix}{explanation_text}\n\n"
+    else:
+        final_text = f"{explanation_text}\n\n"
+
     if rationale:
         final_text += f"**Rationale:** {rationale}\n"
     if pillar:
@@ -1309,7 +1346,6 @@ def api_explain_decision():
         "explanation": final_text,
         "sentiment": sentiment
     })
-
 
 # -------------------------
 # Health-knowledge expand endpoint (small helper)
