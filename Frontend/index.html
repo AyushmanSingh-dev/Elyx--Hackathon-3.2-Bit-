@@ -70,7 +70,7 @@
             padding: 0.75rem;
             border-radius: 0.5rem;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: background-color: 0.2s;
             border-left: 3px solid transparent;
         }
         .timeline-item:hover { background-color: var(--bg-light); }
@@ -173,9 +173,9 @@
     </div>
 
     <script>
-        // IMPORTANT: In your Netlify environment variables, create a variable
-        // named VITE_API_URL and set it to your Render backend URL.
-        const API_BASE_URL = "%VITE_API_URL%" || 'http://127.0.0.1:3001/api';
+        // === EDITED LINE ===
+        // The backend URL is now hardcoded to your live Render service.
+        const API_BASE_URL = "https://elyx-hackathon-3-2-bit.onrender.com/api";
         
         // --- State Management ---
         let selectedEvent = null;
