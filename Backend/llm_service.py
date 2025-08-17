@@ -248,20 +248,27 @@ SYSTEM_POOL = make_pool("System: ",
     ]
 )
 
-# Ensure no reuse: convert pools to lists we pop from
-PERSONA_POOLS = {
-    "Rohan": ROHAN_POOL.copy(),
-    "Ruby": RUBY_POOL.copy(),
-    "Dr. Warren": DRWARREN_POOL.copy(),
-    "Advik": ADVIK_POOL.copy(),
-    "Carla": CARLA_POOL.copy(),
-    "Rachel": RACHEL_POOL.copy(),
-    "Neel": NEEL_POOL.copy(),
-    "System": SYSTEM_POOL.copy()
-}
+PERSONA_POOLS = {}
+USED_MESSAGES = {}
 
-# Used messages sets to ensure uniqueness
-USED_MESSAGES = {k: set() for k in PERSONA_POOLS.keys()}
+def reset_pools():
+    """ Resets the message pools and used messages trackers. Crucial for reproducible runs. """
+    global PERSONA_POOLS, USED_MESSAGES
+    PERSONA_POOLS = {
+        "Rohan": ROHAN_POOL.copy(),
+        "Ruby": RUBY_POOL.copy(),
+        "Dr. Warren": DRWARREN_POOL.copy(),
+        "Advik": ADVIK_POOL.copy(),
+        "Carla": CARLA_POOL.copy(),
+        "Rachel": RACHEL_POOL.copy(),
+        "Neel": NEEL_POOL.copy(),
+        "System": SYSTEM_POOL.copy()
+    }
+    # Randomize the order of messages in each pool if a seed is not set
+    if not RANDOM_SEED:
+        for pool in PERSONA_POOLS.values():
+            random.shuffle(pool)
+    USED_MESSAGES = {k: set() for k in PERSONA_POOLS.keys()}
 
 # -------------------------
 # Helper Utilities
@@ -588,21 +595,59 @@ def generate_week_events(week_index, current_date, state):
     return events_sorted
 
 # -------------------------
-# Main generate function
+# --- FIX --- Main generate function and new API endpoint
+# -------------------------
+def generate_full_journey():
+    """
+    This is the main orchestrator function that generates the entire journey from scratch.
+    """
+    # CRITICAL: Reset pools at the start of every generation request
+    reset_pools()
+
+    all_events = []
+    # Initialize the simulation state
+    sim_state = {
+        "metrics": {
+            "HRV": 55, "RestingHR": 62, "GlucoseAvg": 95,
+            "RecoveryScore": 75, "ApoB": 110
+        },
+        "in_travel": False,
+        "last_diag_week": 0
+    }
+
+    # Loop through the weeks and generate events
+    for week in range(1, WEEKS_TO_GENERATE + 1):
+        # Calculate the date for the start of the current week
+        current_week_start_date = START_DATE + timedelta(weeks=week-1)
+        # Generate all events for this week
+        week_events = generate_week_events(week, current_week_start_date, sim_state)
+        all_events.extend(week_events)
+
+    return all_events
+
+@app.route("/api/generate-full-journey", methods=["GET"])
+def get_full_journey():
+    """
+    This new endpoint correctly calls the main generator to get the full, dynamic journey.
+    """
+    journey_data = generate_full_journey()
+    return jsonify(journey_data)
+
+
+# -------------------------
+# Original journey summary endpoint (now for milestones only)
 # -------------------------
 @app.route("/api/journey", methods=["GET"])
 def get_journey():
+    """ This endpoint now correctly serves its purpose of providing a static, high-level summary. """
     return jsonify(generate_journey_summary(user_name="Rohan Patel"))
 
-
-import random
-import datetime
 
 def generate_journey_summary(user_name="Rohan Patel"):
     """Generate a milestone-only journey (no chat dumps).
     Focused on significant results and events only.
     """
-    now = datetime.datetime.now()
+    now = datetime.now()
     journey = []
 
     milestones = [
@@ -632,7 +677,7 @@ def generate_journey_summary(user_name="Rohan Patel"):
     # Only log each once (no duplicates, no filler)
     for i, event in enumerate(milestones):
         journey.append({
-            "timestamp": (now - datetime.timedelta(days=i*10)).strftime("%A, %B %d, %Y"),
+            "timestamp": (now - timedelta(days=i*10)).strftime("%A, %B %d, %Y"),
             "entry": event
         })
 
