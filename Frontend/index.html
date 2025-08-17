@@ -3,354 +3,295 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Elyx Member Journey</title>
-    
+    <title>Elyx Member Dashboard</title>
     <style>
-        /* --- Basic Setup & Theme --- */
         :root {
-            --bg-dark: #111827;
-            --bg-med: #1F2937;
-            --bg-light: #374151;
-            --border-color: #4B5563;
-            --text-light: #F3F4F6;
-            --text-med: #9CA3AF;
-            --accent: #2DD4BF;
-            --accent-dark: #0D9488;
+            --bg-dark: #111827; --bg-med: #1F2937; --bg-light: #374151;
+            --border-color: #4B5563; --text-light: #F3F4F6; --text-med: #9CA3AF;
+            --accent: #2DD4BF; --accent-dark: #0D9488;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-light);
-            margin: 0;
-            padding: 2rem;
+            background-color: var(--bg-dark); color: var(--text-light);
+            margin: 0; display: flex;
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
+        .sidebar {
+            width: 240px; background-color: var(--bg-med); padding: 1.5rem;
+            height: 100vh; border-right: 1px solid var(--border-color);
+            display: flex; flex-direction: column;
         }
-
-        /* --- Layout & Cards --- */
-        .header, .card {
-            background-color: var(--bg-med);
-            border: 1px solid var(--border-color);
-            border-radius: 0.75rem;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
+        .sidebar-header {
+            display: flex; align-items: center; gap: 0.75rem;
+            margin-bottom: 2rem; font-size: 1.25rem; font-weight: bold;
         }
-        .grid-container {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
+        .sidebar-header svg { color: var(--accent); }
+        .sidebar-nav a {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.75rem; border-radius: 0.5rem;
+            text-decoration: none; color: var(--text-med);
+            transition: background-color 0.2s, color 0.2s;
         }
-        @media (min-width: 1024px) {
-            .grid-container { grid-template-columns: 1fr 2fr; }
+        .sidebar-nav a:hover { background-color: var(--bg-light); color: var(--text-light); }
+        .sidebar-nav a.active { background-color: var(--accent); color: var(--bg-dark); font-weight: bold; }
+        .main-content { flex-grow: 1; padding: 2rem; max-height: 100vh; overflow-y: auto; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .card {
+            background-color: var(--bg-med); border: 1px solid var(--border-color);
+            border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem;
         }
-
-        /* --- Profile Header --- */
-        .profile-header {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-        }
-        .profile-header h1 { margin: 0; font-size: 2rem; }
-        .profile-header p { margin: 0.25rem 0 0; color: var(--text-med); }
-        .profile-icon {
-            background-color: rgba(45, 212, 191, 0.1);
-            color: var(--accent);
-            padding: 1rem;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        /* --- Timeline --- */
-        .timeline-container { max-height: 80vh; overflow-y: auto; }
+        .grid-container { display: grid; grid-template-columns: 1fr 2fr; gap: 1.5rem; }
+        .timeline-container { max-height: 75vh; overflow-y: auto; }
         .timeline-item {
-            display: flex;
-            gap: 1rem;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: background-color: 0.2s;
+            display: flex; gap: 1rem; padding: 0.75rem; border-radius: 0.5rem;
+            cursor: pointer; transition: background-color 0.2s;
             border-left: 3px solid transparent;
         }
         .timeline-item:hover { background-color: var(--bg-light); }
-        .timeline-item.selected {
-            background-color: rgba(45, 212, 191, 0.1);
-            border-left-color: var(--accent);
-        }
+        .timeline-item.selected { background-color: rgba(45, 212, 191, 0.1); border-left-color: var(--accent); }
         .timeline-icon {
-            background-color: var(--bg-light);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
+            background-color: var(--bg-light); width: 40px; height: 40px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
-        .timeline-item h4 { margin: 0; }
-        .timeline-item p { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--text-med); }
-        .timeline-item .decision-link { font-size: 0.75rem; color: var(--accent); font-weight: bold; margin-top: 0.25rem; }
-
-        /* --- Snapshot & Chat --- */
+        .timeline-item h4 { margin: 0; font-size: 0.9rem; }
+        .timeline-item p, .snapshot-card p { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--text-med); }
+        .decision-link { font-size: 0.75rem; color: var(--accent); font-weight: bold; margin-top: 0.25rem; }
         .snapshot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
         .snapshot-card { background-color: var(--bg-dark); padding: 1rem; border-radius: 0.5rem; }
-        .snapshot-card h4 { margin: 0 0 0.5rem; color: var(--text-med); }
+        .snapshot-card h4 { margin: 0 0 0.5rem; color: var(--text-med); font-weight: normal; }
         .chat-container { max-height: 300px; overflow-y: auto; padding-right: 0.5rem; }
-        .chat-bubble { display: flex; gap: 0.75rem; margin-bottom: 0.75rem; }
-        .chat-bubble .content { background-color: var(--bg-light); padding: 0.75rem; border-radius: 0.5rem; flex-grow: 1; }
-        .chat-bubble p { margin: 0; }
-        .chat-bubble .sender { font-weight: bold; font-size: 0.875rem; }
-
-        /* --- Modal --- */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background-color: rgba(0,0,0,0.7);
-            display: none; /* Changed by JS */
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-            z-index: 100;
-        }
-        .modal-content {
-            background-color: var(--bg-med);
-            border-radius: 0.75rem;
-            padding: 1.5rem;
-            width: 100%;
-            max-width: 700px;
-            max-height: 90vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-        .modal-body { overflow-y: auto; }
-        #modal-close { background: none; border: none; color: var(--text-med); font-size: 1.5rem; cursor: pointer; }
-
+        .messages-log { display: flex; flex-direction: column; gap: 1rem; }
+        .chat-bubble { display: flex; gap: 0.75rem; max-width: 80%; }
+        .chat-bubble.member { align-self: flex-end; flex-direction: row-reverse; }
+        .chat-bubble .avatar { width: 40px; height: 40px; border-radius: 50%; background-color: var(--bg-light); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: bold;}
+        .chat-bubble.member .avatar { background-color: var(--accent); color: var(--bg-dark); }
+        .chat-bubble .content { background-color: var(--bg-light); padding: 0.75rem 1rem; border-radius: 0.75rem; }
+        .chat-bubble.member .content { background-color: var(--accent-dark); }
+        .chat-bubble .sender { font-weight: bold; font-size: 0.875rem; margin-bottom: 0.25rem; display: block;}
+        .chat-bubble p { margin: 0; line-height: 1.5; }
+        .profile-grid, .specialists-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
+        .specialist-card { text-align: center; }
+        .specialist-card img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; margin: 0 auto 1rem; border: 3px solid var(--border-color); }
         .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.2);
-            border-left-color: var(--accent);
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 2rem auto;
+            border: 4px solid rgba(255, 255, 255, 0.2); border-left-color: var(--accent);
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin: 5rem auto;
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div id="profile-header" class="header profile-header">
-            <div class="spinner"></div>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            <span>Elyx Dashboard</span>
         </div>
-        
-        <div class="grid-container">
-            <div class="card">
-                <h3>Journey Timeline</h3>
-                <div id="timeline-container" class="timeline-container">
-                    <div class="spinner"></div>
-                </div>
-            </div>
+        <nav class="sidebar-nav">
+            <a href="#journey" class="nav-link active">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                <span>Journey</span>
+            </a>
+            <a href="#messages" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <span>Messages</span>
+            </a>
+            <a href="#profile" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span>Profile</span>
+            </a>
+            <a href="#specialists" class="nav-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                <span>Specialists</span>
+            </a>
+        </nav>
+    </aside>
 
-            <div class="card" id="snapshot-container">
-                <div class="spinner"></div>
-            </div>
+    <main class="main-content">
+        <div id="page-journey" class="page active">
+            <h1>Member Journey</h1><div class="spinner"></div>
         </div>
-    </div>
+        <div id="page-messages" class="page">
+            <h1>Full Message Log</h1><div class="spinner"></div>
+        </div>
+        <div id="page-profile" class="page">
+            <h1>Member Profile</h1><div class="spinner"></div>
+        </div>
+        <div id="page-specialists" class="page">
+            <h1>Your Care Team</h1><div class="spinner"></div>
+        </div>
+    </main>
     
-    <div id="decision-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modal-title">Decision Rationale</h2>
-                <button id="modal-close">&times;</button>
-            </div>
-            <div id="modal-body" class="modal-body">
-                <div class="spinner"></div>
-            </div>
-        </div>
-    </div>
+    <div id="decision-modal" style="display: none;"></div>
 
     <script>
-        // === EDITED LINE ===
-        // The backend URL is now hardcoded to your live Render service.
         const API_BASE_URL = "https://elyx-hackathon-3-2-bit.onrender.com/api";
         
-        // --- State Management ---
-        let selectedEvent = null;
-        let journeyEvents = [];
+        // --- Global State ---
+        let appData = {
+            profile: null, journey: [], messages: [], specialists: [],
+            selectedEvent: null
+        };
 
         // --- DOM Elements ---
-        const profileHeader = document.getElementById('profile-header');
-        const timelineContainer = document.getElementById('timeline-container');
-        const snapshotContainer = document.getElementById('snapshot-container');
-        const modal = document.getElementById('decision-modal');
-        const modalTitle = document.getElementById('modal-title');
-        const modalBody = document.getElementById('modal-body');
-        const modalCloseBtn = document.getElementById('modal-close');
-        
-        // --- SVG Icons ---
+        const pages = document.querySelectorAll('.page');
+        const navLinks = document.querySelectorAll('.nav-link');
+
+        // --- Icons (as SVG strings) ---
         const icons = {
-            medication: `<svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" style="color: #F87171;"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>`,
-            diagnostic: `<svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" style="color: #60A5FA;"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>`,
-            travel: `<svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" style="color: #FBBF24;"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>`,
-            plan: `<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" style="color: #34D399;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"></path></svg>`,
-            default: `<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" style="color: #9CA3AF;"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"></path></svg>`
+            medication: `<svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" style="color: #F87171;"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>`,
+            diagnostic: `<svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" style="color: #60A5FA;"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>`,
+            travel: `<svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" style="color: #FBBF24;"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>`,
+            plan: `<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24" style="color: #34D399;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"></path></svg>`,
+            default: `<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"></path></svg>`
         };
 
-        // --- Event Handlers ---
-        modalCloseBtn.addEventListener('click', () => modal.style.display = 'none');
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.style.display = 'none';
-        });
+        // --- Router ---
+        const router = () => {
+            const hash = window.location.hash || '#journey';
+            pages.forEach(page => page.classList.remove('active'));
+            navLinks.forEach(link => link.classList.remove('active'));
+            
+            const activePage = document.getElementById(`page-${hash.substring(1)}`);
+            const activeLink = document.querySelector(`a[href="${hash}"]`);
 
-        const handleEventSelect = (event) => {
-            selectedEvent = event;
-            renderTimeline(); // Re-render to show selection
-            renderSnapshot();
+            if (activePage) activePage.classList.add('active');
+            if (activeLink) activeLink.classList.add('active');
         };
 
-        const handleDecisionClick = (decisionId) => {
-            modal.style.display = 'flex';
-            modalBody.innerHTML = `<div class="spinner"></div>`;
-            renderDecisionModal(decisionId);
-        };
-
-        // --- Render Functions ---
-        const renderProfile = (profile) => {
-            profileHeader.innerHTML = `
-                <div class="profile-icon">
-                    <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" height="32" width="32" xmlns="http://www.w3.org/2000/svg"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                </div>
-                <div>
-                    <h1>${profile.name}</h1>
-                    <p>Managing: <strong>${profile.chronic_condition}</strong></p>
-                </div>`;
-        };
-        
-        const renderTimeline = () => {
-            if (journeyEvents.length === 0) return;
-            timelineContainer.innerHTML = journeyEvents.map(event => `
-                <div class="timeline-item ${selectedEvent && selectedEvent.date === event.date ? 'selected' : ''}" data-date="${event.date}">
+        // --- Render Functions for Each Page ---
+        const renderJourneyPage = () => {
+            const container = document.getElementById('page-journey');
+            if (!appData.journey.length) return;
+            appData.selectedEvent = appData.selectedEvent || appData.journey[0];
+            
+            const timelineHtml = appData.journey.map(event => `
+                <div class="timeline-item ${appData.selectedEvent.date === event.date ? 'selected' : ''}" data-date="${event.date}">
                     <div class="timeline-icon">${icons[event.type] || icons.default}</div>
                     <div>
                         <h4>${event.title}</h4>
-                        <p>${new Date(event.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                        ${event.decision_id ? `<div class="decision-link" data-decision-id="${event.decision_id}">Why was this decision made?</div>` : ''}
+                        <p>${new Date(event.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</p>
+                        ${event.decision_id ? `<div class="decision-link" data-decision-id="${event.decision_id}">Why this decision?</div>` : ''}
+                    </div>
+                </div>`).join('');
+
+            container.innerHTML = `
+                <h1>Member Journey</h1>
+                <div class="grid-container">
+                    <div class="card"><div class="timeline-container">${timelineHtml}</div></div>
+                    <div class="card" id="snapshot-container"><div class="spinner"></div></div>
+                </div>`;
+            renderSnapshot();
+
+            // Add event listeners after rendering
+            container.querySelectorAll('.timeline-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    appData.selectedEvent = appData.journey.find(e => e.date === item.dataset.date);
+                    renderJourneyPage();
+                });
+            });
+            container.querySelectorAll('.decision-link').forEach(link => {
+                link.addEventListener('click', e => { e.stopPropagation(); /* Logic for modal */ });
+            });
+        };
+        
+        const renderMessagesPage = () => {
+            const container = document.getElementById('page-messages');
+            if (!appData.messages.length) return;
+            const messagesHtml = appData.messages.map(msg => `
+                <div class="chat-bubble ${msg.sender_id.includes('member') ? 'member' : ''}">
+                    <div class="avatar">${msg.sender_name.substring(0, 1)}</div>
+                    <div class="content">
+                        <span class="sender">${msg.sender_name} - ${new Date(msg.timestamp).toLocaleString()}</span>
+                        <p>${msg.content}</p>
                     </div>
                 </div>
             `).join('');
+            container.innerHTML = `<h1>Full Message Log</h1><div class="messages-log">${messagesHtml}</div>`;
+        };
 
-            // Add event listeners after rendering
-            document.querySelectorAll('.timeline-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const eventData = journeyEvents.find(e => e.date === item.dataset.date);
-                    if (eventData) handleEventSelect(eventData);
-                });
-            });
-            document.querySelectorAll('.decision-link').forEach(link => {
-                link.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Prevent timeline item click
-                    handleDecisionClick(link.dataset.decisionId);
-                });
-            });
+        const renderProfilePage = () => {
+            const container = document.getElementById('page-profile');
+            if (!appData.profile) return;
+            container.innerHTML = `
+                <h1>Member Profile</h1>
+                <div class="card">
+                    <h2>${appData.profile.name}</h2>
+                    <p><strong>Age:</strong> ${appData.profile.age}</p>
+                    <p><strong>Occupation:</strong> ${appData.profile.occupation}</p>
+                    <p><strong>Condition:</strong> ${appData.profile.chronic_condition}</p>
+                </div>`;
+        };
+        
+        const renderSpecialistsPage = () => {
+            const container = document.getElementById('page-specialists');
+            if (!appData.specialists.length) return;
+            const specialistsHtml = appData.specialists.map(sp => `
+                <div class="card specialist-card">
+                    <img src="${sp.image_url}" alt="${sp.name}">
+                    <h3>${sp.name}</h3>
+                    <h4>${sp.role}</h4>
+                    <p><em>${sp.specialty}</em></p>
+                    <p>${sp.bio}</p>
+                </div>`).join('');
+            container.innerHTML = `<h1>Your Care Team</h1><div class="specialists-grid">${specialistsHtml}</div>`;
         };
 
         const renderSnapshot = async () => {
-            if (!selectedEvent) {
-                snapshotContainer.innerHTML = `<p>Select an event from the timeline to see details.</p>`;
-                return;
-            }
-            snapshotContainer.innerHTML = `<div class="spinner"></div>`;
-
-            try {
-                const dateStr = new Date(selectedEvent.date).toISOString();
-                const response = await fetch(`${API_BASE_URL}/snapshot?date=${dateStr}`);
-                const data = await response.json();
-                
-                const commsHtml = data.communications.length > 0 ? data.communications.map(msg => `
-                    <div class="chat-bubble">
-                        <div>
-                            <p class="sender">${msg.sender_name}</p>
-                            <p class="content">${msg.content}</p>
-                        </div>
+            const container = document.getElementById('snapshot-container');
+            if (!container || !appData.selectedEvent) return;
+            container.innerHTML = `<div class="spinner"></div>`;
+            const dateStr = new Date(appData.selectedEvent.date).toISOString();
+            const response = await fetch(`${API_BASE_URL}/snapshot?date=${dateStr}`);
+            const data = await response.json();
+            
+            const commsHtml = data.communications.length > 0 ? data.communications.map(msg => `
+                <div class="chat-bubble" style="max-width: 100%;">
+                    <div class="avatar">${msg.sender_name.substring(0,1)}</div>
+                    <div class="content">
+                      <span class="sender">${msg.sender_name}</span>
+                      <p>${msg.content}</p>
                     </div>
-                `).join('') : '<p>No communications on this day.</p>';
+                </div>`).join('') : '<p>No communications on this day.</p>';
 
-                snapshotContainer.innerHTML = `
-                    <h3>Snapshot for ${new Date(selectedEvent.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</h3>
-                    <p style="color: var(--text-med); margin-top: -0.5rem;">Status on the day of: <strong>"${selectedEvent.title}"</strong></p>
-                    <div class="snapshot-grid">
-                        <div class="snapshot-card"><h4>Active Plan</h4><p>${data.activePlan}</p></div>
-                        <div class="snapshot-card"><h4>Medications</h4><p>${data.activeMedications}</p></div>
-                        <div class="snapshot-card" style="grid-column: 1 / -1;"><h4>Key Biomarker</h4><p>${data.keyMetrics.ldl}</p></div>
-                    </div>
-                    <h3 style="margin-top: 1.5rem;">Communications</h3>
-                    <div class="chat-container">${commsHtml}</div>`;
-            } catch (error) {
-                snapshotContainer.innerHTML = `<p>Error loading snapshot data.</p>`;
-                console.error(error);
-            }
+            container.innerHTML = `
+                <h3>Snapshot for ${new Date(appData.selectedEvent.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</h3>
+                <p>Status on the day of: <strong>"${appData.selectedEvent.title}"</strong></p>
+                <div class="snapshot-grid">
+                    <div class="snapshot-card"><h4>Active Plan</h4><p>${data.activePlan}</p></div>
+                    <div class="snapshot-card"><h4>Medications</h4><p>${data.activeMedications}</p></div>
+                </div>
+                <h3 style="margin-top: 1.5rem;">Communications on this Day</h3>
+                <div class="chat-container">${commsHtml}</div>`;
         };
 
-        const renderDecisionModal = async (decisionId) => {
-            try {
-                const response = await fetch(`${API_BASE_URL}/decision/${decisionId}`);
-                const data = await response.json();
-
-                modalTitle.innerText = data.decisionTitle;
-                const evidenceHtml = data.linkedEvidence.map(msg => `
-                    <div class="chat-bubble">
-                        <div>
-                            <p class="sender">${msg.sender_name} <span style="color: var(--text-med); font-weight: normal;">(${new Date(msg.timestamp).toLocaleDateString()})</span></p>
-                            <p class="content">${msg.content}</p>
-                        </div>
-                    </div>
-                `).join('');
-
-                modalBody.innerHTML = `
-                    <h4>Rationale</h4>
-                    <div class="snapshot-card" style="margin-bottom: 1.5rem;">${data.rationale}</div>
-                    <h4>Supporting Evidence</h4>
-                    <div>${evidenceHtml}</div>`;
-            } catch (error) {
-                modalBody.innerHTML = `<p>Error loading decision data.</p>`;
-                console.error(error);
-            }
-        };
-        
         // --- Initialization ---
         const initializeApp = async () => {
             try {
-                const [profileRes, journeyRes] = await Promise.all([
-                    fetch(`${API_BASE_URL}/profile`),
-                    fetch(`${API_BASE_URL}/journey`)
+                const [profileRes, journeyRes, messagesRes, specialistsRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/profile`), fetch(`${API_BASE_URL}/journey`),
+                    fetch(`${API_BASE_URL}/messages`), fetch(`${API_BASE_URL}/specialists`)
                 ]);
+                appData.profile = await profileRes.json();
+                appData.journey = await journeyRes.json();
+                appData.messages = await messagesRes.json();
+                appData.specialists = await specialistsRes.json();
 
-                if (!profileRes.ok || !journeyRes.ok) {
-                    throw new Error('Failed to fetch initial data from the backend.');
-                }
-
-                const profile = await profileRes.json();
-                journeyEvents = await journeyRes.json();
+                // Render all pages with the fetched data
+                renderJourneyPage();
+                renderMessagesPage();
+                renderProfilePage();
+                renderSpecialistsPage();
                 
-                renderProfile(profile);
-                
-                if (journeyEvents.length > 0) {
-                    selectedEvent = journeyEvents[0]; // Select the most recent event by default
-                    renderTimeline();
-                    renderSnapshot();
-                } else {
-                    timelineContainer.innerHTML = "<p>No journey events found.</p>";
-                    snapshotContainer.innerHTML = "<p>No data to display.</p>";
-                }
+                // Set the initial page based on the URL hash
+                router();
             } catch (error) {
                 console.error("Failed to initialize app:", error);
-                document.body.innerHTML = `<div style="text-align: center; padding: 4rem;"><h1>Error: Could not connect to the backend.</h1><p>Please ensure the Python server is running and accessible at ${API_BASE_URL}.</p></div>`;
+                document.querySelector('.main-content').innerHTML = `<h1>Error: Could not connect to the backend.</h1>`;
             }
         };
 
+        window.addEventListener('hashchange', router);
         document.addEventListener('DOMContentLoaded', initializeApp);
 
     </script>
