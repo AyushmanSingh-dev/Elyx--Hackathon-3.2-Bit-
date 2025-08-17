@@ -8,19 +8,30 @@ from datetime import datetime, time
 app = Flask(__name__)
 
 # In a production environment like Render, you'll set the FRONTEND_URL.
-# For local testing, it might fall back to a default localhost port.
-frontend_url = os.getenv("FRONTEND_URL", "*") # Use "*" for simplicity or specify a default
+frontend_url = os.getenv("FRONTEND_URL", "*") 
 
-CORS(app, resources={r"/api/*": {"origins": frontend_url}})
+CORS(app, resources={r"/*": {"origins": frontend_url}})
 
 
 # Load the entire conversation log into memory on startup
-with open('Elyx_Sarah_Tan_Conversation_Log.json', 'r', encoding='utf-8') as f:
-    conversation_log = json.load(f)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+JSON_FILE_PATH = os.path.join(BASE_DIR, 'Elyx_Sarah_Tan_Conversation_Log.json')
+
+try:
+    with open(JSON_FILE_PATH, 'r', encoding='utf-8') as f:
+        conversation_log = json.load(f)
+except FileNotFoundError:
+    print(f"FATAL ERROR: The file {JSON_FILE_PATH} was not found.")
+    conversation_log = []
 
 # --- API Endpoints ---
 
-@app.route('/api/member/sarah_tan/profile')
+@app.route('/')
+def index():
+    """Handles requests to the root URL to confirm the API is live."""
+    return jsonify({"status": "ok", "message": "Welcome to the Elyx Backend API!"})
+
+@app.route('/api/profile') # <-- EDITED
 def get_profile():
     """Serves the static member profile."""
     return jsonify({
@@ -30,7 +41,7 @@ def get_profile():
         "chronic_condition": "High Cholesterol",
     })
 
-@app.route('/api/member/sarah_tan/journey')
+@app.route('/api/journey') # <-- EDITED
 def get_journey():
     """Extracts and serves major timeline events from the log."""
     journey_events = [
@@ -42,11 +53,10 @@ def get_journey():
         }
         for msg in conversation_log if "journey_event" in msg["tags"]
     ]
-    # Sort events descending by date (most recent first)
     sorted_journey = sorted(journey_events, key=lambda x: x['date'], reverse=True)
     return jsonify(sorted_journey)
 
-@app.route('/api/member/sarah_tan/snapshot')
+@app.route('/api/snapshot') # <-- EDITED
 def get_snapshot():
     """Provides a detailed snapshot of the member's status on a given day."""
     date_str = request.args.get('date')
@@ -55,7 +65,6 @@ def get_snapshot():
 
     snapshot_date = datetime.fromisoformat(date_str.replace('Z', '+00:00')).date()
     
-    # Get all logs on or before the snapshot date
     relevant_logs = [msg for msg in conversation_log if datetime.fromisoformat(msg['timestamp'].replace('Z', '+00:00')).date() <= snapshot_date]
 
     def find_last_event(tag):
@@ -64,7 +73,6 @@ def get_snapshot():
                 return msg["content"]
         return "No data available."
 
-    # Communications for the specific day
     start_of_day = datetime.combine(snapshot_date, time.min)
     end_of_day = datetime.combine(snapshot_date, time.max)
     
@@ -114,7 +122,5 @@ def get_metrics():
         "health_coach_hours": coach_hours,
     })
 
-# This part is for local execution. Render will use the Gunicorn start command.
 if __name__ == '__main__':
-    # For local testing, you can run `python backend.py`
     app.run(port=3001, debug=True)
