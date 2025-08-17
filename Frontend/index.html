@@ -15,16 +15,15 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            background-color: #f3f4f6; /* Gray 100 */
         }
         .spinner {
             border: 4px solid rgba(0, 0, 0, 0.1);
-            border-left-color: #4f46e5; /* Indigo 600 */
+            border-left-color: #6366f1; /* Indigo 500 */
             border-radius: 50%;
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
-            margin: 2rem auto;
+            margin: 0 auto;
         }
         @keyframes spin {
             to { transform: rotate(360deg); }
@@ -37,47 +36,43 @@
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <script type="text/babel">
-        // All JavaScript/React code goes here.
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
 
-        const { useState, useEffect, useCallback, useRef } = React;
+    <script type="module">
+        // Access React from global scope
+        const { useState, useEffect, useCallback } = window.React;
+        const ReactDOM = window.ReactDOM;
 
         // --- NavItem Component ---
         const NavItem = ({ label, section, activeSection, setActiveSection }) => {
+            const React = window.React;
             return (
-                <button
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
-                        activeSection === section 
-                        ? 'bg-indigo-700 text-white shadow-md' 
-                        : 'text-indigo-100 hover:bg-indigo-500 hover:bg-opacity-75'
-                    }`}
-                    onClick={() => setActiveSection(section)}
-                >
-                    {label}
-                </button>
+                React.createElement('button', {
+                    className: `px-4 py-2 rounded-md text-white font-medium transition-colors duration-300 ${activeSection === section ? 'bg-indigo-600 shadow-lg' : 'hover:bg-indigo-700'}`,
+                    onClick: () => setActiveSection(section)
+                }, label)
             );
         };
 
         // --- Main App Component ---
         function App() {
-            // --- STATE MANAGEMENT ---
-            const [activeSection, setActiveSection] = useState('journey');
-            const [journeyData, setJourneyData] = useState([]);
-            const [isLoading, setIsLoading] = useState(true);
-            const [error, setError] = useState(null);
+            const [activeSection, setActiveSection] = useState('dashboard');
+            const [userId, setUserId] = useState('');
+            const [isAuthReady, setIsAuthReady] = useState(false);
             const [decisionQuery, setDecisionQuery] = useState('');
             const [decisionResponse, setDecisionResponse] = useState('');
             const [isLoadingDecision, setIsLoadingDecision] = useState(false);
+            const [journeyData, setJourneyData] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [error, setError] = useState(null);
 
-
-            // --- IMPORTANT: Backend Configuration ---
-            // Update this URL if your backend is running on a different address or is deployed.
+            // IMPORTANT: Replace this with YOUR ACTUAL BACKEND URL if deployed
             const BACKEND_API_URL = "http://127.0.0.1:5001";
 
-            // --- DATA FETCHING ---
+            // --- DATA FETCHING LOGIC ---
+            // This function replaces the old static data
             const fetchJourneyData = useCallback(async () => {
                 setIsLoading(true);
                 setError(null);
@@ -87,20 +82,17 @@
                         throw new Error(`HTTP error! Status: ${response.status}. Is the backend server running?`);
                     }
                     const data = await response.json();
-                    const sortedData = data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                    setJourneyData(sortedData);
+                    setJourneyData(data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)));
                 } catch (err) {
-                    console.error("Failed to fetch journey data:", err);
                     setError(err.message);
-                    setJourneyData([]); // Clear data on error
+                    setJourneyData([]);
                 } finally {
                     setIsLoading(false);
                 }
-            }, []); // Empty dependency array means this function is created once
+            }, []);
 
-            // --- DECISION QUERY ---
             const handleDecisionQuery = async () => {
-                 if (!decisionQuery.trim()) {
+                if (!decisionQuery.trim()) {
                     setDecisionResponse("Please enter a question about a decision.");
                     return;
                 }
@@ -124,185 +116,237 @@
                     setIsLoadingDecision(false);
                 }
             };
-            
-            // Fetch data when the component first loads
+
             useEffect(() => {
+                // Fetch data when component mounts
                 fetchJourneyData();
+
+                // Firebase initialization and authentication (from your original code)
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+                if (firebaseConfig && window.firebase && window.firebase.auth) {
+                    const { initializeApp } = window.firebase;
+                    const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.firebase.auth;
+                    
+                    const app = initializeApp(firebaseConfig);
+                    const auth = getAuth(app);
+
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            setUserId(user.uid);
+                        } else {
+                            if (initialAuthToken) {
+                                signInWithCustomToken(auth, initialAuthToken)
+                                    .then(() => console.log('Signed in with custom token'))
+                                    .catch(error => console.error('Error signing in with custom token:', error));
+                            } else {
+                                signInAnonymously(auth)
+                                    .then(() => console.log('Signed in anonymously'))
+                                    .catch(error => console.error('Error signing in anonymously:', error));
+                            }
+                        }
+                        setIsAuthReady(true);
+                    });
+                } else {
+                    console.warn('Firebase global objects not found or config missing. Running without Firebase authentication.');
+                    setUserId('mock-user-id-' + Math.random().toString(36).substring(2, 9));
+                    setIsAuthReady(true);
+                }
             }, [fetchJourneyData]);
-            
-            // --- UI RENDER LOGIC ---
 
             const renderContent = () => {
                 if (isLoading) {
-                    return <div className="text-center p-10"><div className="spinner"></div><p className="text-lg text-gray-600 mt-4">Generating Health Journey...</p></div>;
+                    return React.createElement('div', { className: 'text-center p-10' },
+                        React.createElement('div', { className: 'spinner' }),
+                        React.createElement('p', { className: 'text-lg text-gray-600 mt-4' }, 'Generating Health Journey...')
+                    );
                 }
                 if (error) {
-                    return <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-lg" role="alert">
-                        <p className="font-bold">Error Fetching Data</p>
-                        <p>{error}</p>
-                        <p className="mt-2 text-sm">Please make sure your Python backend server (`llm_service.py`) is running and the URL is correct.</p>
-                    </div>;
+                    return React.createElement('div', { className: 'bg-red-100 border-l-4 border-red-500 text-red-700 p-4 m-4 rounded shadow-lg', role: 'alert' },
+                        React.createElement('p', { className: 'font-bold' }, 'Error Fetching Data'),
+                        React.createElement('p', null, error)
+                    );
                 }
+
                 switch (activeSection) {
+                    case 'dashboard':
+                        const recentMessages = journeyData.filter(item => item.type === 'message').slice(-3).reverse();
+                        const latestMetricsData = journeyData.length > 0 ? journeyData[journeyData.length - 1].healthMetricsSnapshot : {};
+                        const latestMetrics = {
+                            hrv: { value: latestMetricsData?.HRV || "N/A" },
+                            restingHR: { value: latestMetricsData?.RestingHR || "N/A" },
+                            apoB: { value: latestMetricsData?.ApoB || "N/A" },
+                        };
+                        return (
+                            React.createElement('div', { className: "p-6 text-gray-700" },
+                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Welcome, Rohan!"),
+                                React.createElement('p', { className: "text-lg mb-4" }, "This is your personalized health dashboard."),
+                                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" },
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Current Health Snapshot"),
+                                        React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600" },
+                                            React.createElement('li', null, "HRV: ", React.createElement('span', { className: "font-semibold text-green-600" }, `${latestMetrics.hrv.value} ms`)),
+                                            React.createElement('li', null, "Resting HR: ", React.createElement('span', { className: "font-semibold text-green-600" }, `${latestMetrics.restingHR.value} bpm`)),
+                                            React.createElement('li', null, "ApoB: ", React.createElement('span', { className: "font-semibold text-green-600" }, `${latestMetrics.apoB} mg/dL`))
+                                        )
+                                    ),
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Upcoming Activities"),
+                                         React.createElement('ul', { className: "list-disc list-inside space-y-1 text-gray-600" },
+                                            React.createElement('li', null, "Quarterly Diagnostic Panel"),
+                                            React.createElement('li', null, "Bi-weekly Exercise Plan Update"),
+                                            React.createElement('li', null, "Scheduled International Trip")
+                                        )
+                                    ),
+                                    React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Recent Communications"),
+                                        recentMessages.length > 0 ? recentMessages.map((msg, index) => (
+                                            React.createElement('p', { key: index, className: "text-gray-600 italic text-sm mb-1" }, `"${msg.content.substring(0, 70)}..." - ${msg.sender}`)
+                                        )) : React.createElement('p', { className: 'text-gray-500' }, 'No recent messages.')
+                                    )
+                                )
+                            )
+                        );
                     case 'journey':
-                        return <JourneyTimeline data={journeyData} onRefresh={fetchJourneyData} isLoading={isLoading} />;
+                        return (
+                            React.createElement('div', { className: "p-6 text-gray-700" },
+                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Your Health Journey Timeline"),
+                                React.createElement('div', { className: "bg-white p-8 rounded-lg shadow-md overflow-y-auto max-h-[600px] border border-gray-200" },
+                                    React.createElement('button', {
+                                        onClick: fetchJourneyData,
+                                        disabled: isLoading,
+                                        className: "mb-6 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition disabled:opacity-50"
+                                    }, isLoading ? 'Refreshing...' : 'Refresh Journey'),
+                                    journeyData.length > 0 ? (
+                                        React.createElement('div', { className: "relative pl-6" },
+                                            React.createElement('div', { className: "absolute left-0 top-0 bottom-0 w-1 bg-indigo-200 rounded-full" }),
+                                            journeyData.map((item, index) => (
+                                                React.createElement('div', { key: index, className: "mb-8 relative" },
+                                                    React.createElement('div', { className: "absolute -left-2 top-1 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xs z-10" }, item.sender === 'Rohan' ? '👤' : '💬'),
+                                                    React.createElement('div', { className: "ml-6 pb-4" },
+                                                        React.createElement('p', { className: "text-sm text-gray-500 mb-1" }, item.timestamp),
+                                                        React.createElement('h3', { className: "font-semibold text-lg text-gray-800" }, `${item.sender}:`),
+                                                        React.createElement('p', { className: "text-gray-700" }, item.content || item.description),
+                                                        item.specialist && React.createElement('p', { className: "mt-1 text-xs text-gray-600" }, "Specialist: ", item.specialist)
+                                                    )
+                                                )
+                                            ))
+                                        )
+                                    ) : React.createElement('p', null, 'No journey data.')
+                                )
+                            )
+                        );
                     case 'messages':
-                        return <MessagesView data={journeyData} onRefresh={fetchJourneyData} isLoading={isLoading} />;
+                        return (
+                            React.createElement('div', { className: "p-6 text-gray-700" },
+                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Your Conversations"),
+                                React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md overflow-y-auto max-h-[600px] flex flex-col-reverse" },
+                                    journeyData.filter(item => item.type === 'message').reverse().map((msg, index) => (
+                                        React.createElement('div', { key: index, className: `mb-4 p-3 rounded-lg max-w-[80%] ${msg.sender === 'Rohan' ? 'bg-blue-100 self-end text-right' : 'bg-gray-100 self-start text-left'}` },
+                                            React.createElement('p', { className: "font-semibold text-sm mb-1" }, msg.sender),
+                                            React.createElement('p', { className: "text-gray-800" }, msg.content),
+                                            React.createElement('p', { className: "text-xs text-gray-500 mt-1" }, msg.timestamp)
+                                        )
+                                    ))
+                                )
+                            )
+                        );
+                    case 'specialists':
+                        const specialists = [
+                            { name: "Dr. Warren", role: "Medical Strategist", desc: "Physician and final clinical authority, interprets lab results, approves diagnostic strategies." },
+                            { name: "Advik", role: "Performance Scientist", desc: "Data analysis expert (wearables data), focuses on nervous system, sleep, cardiovascular training." },
+                            { name: "Carla", role: "Nutritionist", desc: "Designs nutrition plans, analyzes food logs and CGM data, supplement recommendations." },
+                            { name: "Rachel", role: "Physiotherapist", desc: "Manages physical movement: strength training, mobility, injury rehabilitation." },
+                            { name: "Ruby", role: "Concierge", desc: "Primary point of contact for logistics, scheduling, reminders, and follow-ups." },
+                            { name: "Neel", role: "Concierge Lead", desc: "Senior leader, major strategic reviews, de-escalates frustrations, connects work to goals." }
+                        ];
+                        return (
+                             React.createElement('div', { className: "p-6 text-gray-700" },
+                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Elyx Health Specialists"),
+                                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" },
+                                    specialists.map(spec => React.createElement('div', { key: spec.name, className: "bg-white p-6 rounded-lg shadow-md" },
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, `${spec.name} `, React.createElement('span', { className: "text-sm text-gray-500" }, `(${spec.role})`)),
+                                        React.createElement('p', { className: "text-gray-600" }, spec.desc)
+                                    ))
+                                )
+                            )
+                        );
                     case 'decision-query':
-                        return <DecisionQueryView />;
+                        return (
+                            React.createElement('div', { className: "p-6 text-gray-700" },
+                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Ask About a Decision"),
+                                React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
+                                    React.createElement('textarea', {
+                                        className: "w-full p-4 border border-gray-300 rounded-lg mb-4", rows: "5",
+                                        placeholder: "E.g., Why was my ApoB a focus?",
+                                        value: decisionQuery, onChange: (e) => setDecisionQuery(e.target.value),
+                                    }),
+                                    React.createElement('button', {
+                                        className: `w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold ${isLoadingDecision ? 'opacity-50' : 'hover:bg-indigo-700'}`,
+                                        onClick: handleDecisionQuery, disabled: isLoadingDecision,
+                                    }, isLoadingDecision ? 'Asking AI...' : 'Ask Elyx AI'),
+                                    decisionResponse && React.createElement('div', { className: "mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200" },
+                                        React.createElement('p', { className: "font-semibold text-indigo-800" }, "Elyx AI's Explanation:"),
+                                        React.createElement('p', { className: 'whitespace-pre-wrap' }, decisionResponse)
+                                    )
+                                )
+                            )
+                        );
+                    case 'profile':
+                        return (
+                            React.createElement('div', { className: "p-6 text-gray-700" },
+                                React.createElement('h2', { className: "text-3xl font-semibold mb-4" }, "Rohan's Profile"),
+                                React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md" },
+                                    React.createElement('h3', { className: "text-lg font-medium text-indigo-700" }, "Personal Details"),
+                                    React.createElement('ul', { className: "list-disc list-inside mt-2 text-gray-600" },
+                                         React.createElement('li', null, "Name: Rohan Patel"),
+                                         React.createElement('li', null, "Age: 46"),
+                                         React.createElement('li', null, "Residence: Singapore"),
+                                         React.createElement('li', null, "Occupation: Regional Head of Sales (FinTech)"),
+                                    ),
+                                    React.createElement('h3', { className: "text-lg font-medium text-indigo-700 mt-4" }, "Core Goals"),
+                                    React.createElement('ul', { className: "list-disc list-inside mt-2 text-gray-600" },
+                                        React.createElement('li', null, "Reduce risk of heart disease (ApoB focus)"),
+                                        React.createElement('li', null, "Enhance cognitive function and focus")
+                                    ),
+                                    isAuthReady && userId && React.createElement('div', { className: "mt-6 p-4 bg-blue-50 rounded-lg text-blue-800" },
+                                        React.createElement('p', { className: "font-semibold" }, "Your User ID:"),
+                                        React.createElement('p', { className: "text-sm" }, userId)
+                                    )
+                                )
+                            )
+                        );
                     default:
-                        return <div className="text-center p-10"><h2 className="text-2xl font-bold">Welcome to Elyx</h2><p>Select a view to begin.</p></div>;
+                        return null;
                 }
             };
-            
-            // --- UI COMPONENTS ---
-            const JourneyTimeline = ({ data, onRefresh, isLoading }) => (
-                <div className="bg-white p-6 md:p-8 rounded-lg shadow-md border border-gray-200">
-                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-gray-800">Health Journey Timeline</h2>
-                        <button 
-                            onClick={onRefresh}
-                            className="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition-all duration-300 disabled:opacity-50"
-                            disabled={isLoading}
-                        >
-                            {isLoading ? 'Refreshing...' : 'Refresh Journey'}
-                        </button>
-                    </div>
-                    <div className="relative pl-6 border-l-2 border-indigo-200 max-h-[70vh] overflow-y-auto pr-4">
-                        {data.map((item, index) => {
-                             const isRohan = item.sender === 'Rohan';
-                             const isSystem = item.sender === 'System';
-                             let icon = '💬'; // Default for team
-                             if (isRohan) icon = '👤';
-                             if (isSystem) icon = '⚙️';
-                             if (item.type && item.type.includes('diagnostic')) icon = '🔬';
-                             if (item.type && item.type.includes('travel')) icon = '✈️';
-                             if (item.type && item.type.includes('exercise')) icon = '🏋️';
 
-                             return (
-                                <div key={index} className="mb-8 relative">
-                                    <div className={`absolute -left-8 top-1 w-10 h-10 bg-white border-2 ${isSystem ? 'border-gray-400' : 'border-indigo-500'} rounded-full flex items-center justify-center text-xl z-10`}>
-                                        {icon}
-                                    </div>
-                                    <div className="ml-6">
-                                        <p className="text-sm text-gray-500 mb-1">{item.timestamp}</p>
-                                        <p className={`font-semibold text-lg ${isRohan ? 'text-blue-600' : 'text-gray-800'}`}>
-                                            {item.sender}:
-                                        </p>
-                                        <p className="text-gray-700 leading-relaxed">{item.content}</p>
-                                        {item.specialist && !isSystem && (
-                                            <p className="mt-2 text-xs text-white bg-indigo-400 rounded-full px-2 py-0.5 inline-block">
-                                                Specialist: {item.specialist}
-                                            </p>
-                                        )}
-                                        {item.decisionRationale && (
-                                            <div className="mt-2 p-3 bg-blue-50 rounded-md border border-blue-200 text-blue-800 text-sm">
-                                                <p className="font-medium">Rationale:</p>
-                                                <p>{item.decisionRationale}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            );
-
-            const MessagesView = ({ data, onRefresh, isLoading }) => {
-                const messages = data.filter(item => item.type === 'message' || item.type.includes('update'));
-                return (
-                    <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-2xl font-bold text-gray-800">Conversations</h2>
-                            <button 
-                                onClick={onRefresh}
-                                className="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition-all duration-300 disabled:opacity-50"
-                                disabled={isLoading}
-                            >
-                                {isLoading ? 'Refreshing...' : 'Refresh Journey'}
-                            </button>
-                        </div>
-                        <div className="h-[70vh] overflow-y-auto flex flex-col-reverse p-4 bg-gray-50 rounded-lg">
-                            <div className="space-y-4">
-                                {messages.slice().reverse().map((msg, index) => {
-                                    const isRohan = msg.sender === 'Rohan';
-                                    return (
-                                        <div key={index} className={`flex items-end gap-3 ${isRohan ? 'justify-end' : 'justify-start'}`}>
-                                            <div className={`p-3 rounded-xl max-w-lg ${isRohan ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-200 text-gray-800 rounded-bl-none'}`}>
-                                                <p className="font-bold text-sm mb-1">{msg.sender}</p>
-                                                <p>{msg.content}</p>
-                                                <p className={`text-xs mt-2 opacity-70 ${isRohan ? 'text-blue-100' : 'text-gray-500'}`}>{msg.timestamp}</p>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                );
-            };
-
-            const DecisionQueryView = () => (
-                <div className="p-6 text-gray-700">
-                    <h2 className="text-3xl font-semibold mb-4">Ask About a Decision</h2>
-                    <p className="text-lg mb-6">Have a question about a specific recommendation, medication, or plan change? Type it below and our AI will provide the rationale.</p>
-                    <div className="bg-white p-6 rounded-lg shadow-md">
-                        <textarea
-                            className="w-full p-4 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all duration-200"
-                            rows="5"
-                            placeholder="E.g., Why was the blue-light blocking glasses suggested?"
-                            value={decisionQuery}
-                            onChange={(e) => setDecisionQuery(e.target.value)}
-                            disabled={isLoadingDecision}
-                        />
-                        <button
-                            className={`w-full bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold text-lg shadow-md transition-all duration-300 ${isLoadingDecision ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-700 hover:shadow-lg'}`}
-                            onClick={handleDecisionQuery}
-                            disabled={isLoadingDecision}
-                        >
-                            {isLoadingDecision ? 'Asking AI...' : 'Ask Elyx AI'}
-                        </button>
-                        {decisionResponse && (
-                            <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200 text-indigo-800 break-words whitespace-pre-wrap">
-                                <p className="font-semibold">Elyx AI's Explanation:</p>
-                                <p>{decisionResponse}</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-
-            // --- MAIN RENDER ---
             return (
-                <div className="min-h-screen bg-gray-100 font-sans text-gray-900">
-                    <nav className="bg-indigo-600 shadow-lg">
-                        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                            <div className="flex items-center justify-between h-16">
-                                <div className="flex items-center">
-                                    <span className="text-white text-2xl font-bold">Elyx Life</span>
-                                </div>
-                                <div className="flex space-x-2">
-                                    <NavItem label="Journey" section="journey" activeSection={activeSection} setActiveSection={setActiveSection} />
-                                    <NavItem label="Messages" section="messages" activeSection={activeSection} setActiveSection={setActiveSection} />
-                                    <NavItem label="Decision Query" section="decision-query" activeSection={activeSection} setActiveSection={setActiveSection} />
-                                </div>
-                            </div>
-                        </div>
-                    </nav>
-                    <main className="container mx-auto px-4 py-8">
-                        {renderContent()}
-                    </main>
-                    <footer className="bg-indigo-600 p-4 text-white text-center text-sm mt-8">
-                        <p>© {new Date().getFullYear()} Elyx Life. All rights reserved.</p>
-                    </footer>
-                </div>
+                React.createElement('div', { className: "min-h-screen bg-gray-100 font-sans text-gray-900 flex flex-col" },
+                    React.createElement('nav', { className: "bg-indigo-800 p-4 shadow-md" },
+                        React.createElement('div', { className: "container mx-auto flex justify-between items-center flex-wrap" },
+                            React.createElement('div', { className: "text-white text-2xl font-bold" }, "Elyx Life"),
+                            React.createElement('div', { className: "flex space-x-1 md:space-x-2 mt-2 md:mt-0" },
+                                React.createElement(NavItem, { label: "Dashboard", section: "dashboard", activeSection: activeSection, setActiveSection: setActiveSection }),
+                                React.createElement(NavItem, { label: "Journey", section: "journey", activeSection: activeSection, setActiveSection: setActiveSection }),
+                                React.createElement(NavItem, { label: "Messages", section: "messages", activeSection: activeSection, setActiveSection: setActiveSection }),
+                                React.createElement(NavItem, { label: "Specialists", section: "specialists", activeSection: activeSection, setActiveSection: setActiveSection }),
+                                React.createElement(NavItem, { label: "Decision Query", section: "decision-query", activeSection: activeSection, setActiveSection: setActiveSection }),
+                                React.createElement(NavItem, { label: "Profile", section: "profile", activeSection: activeSection, setActiveSection: setActiveSection })
+                            )
+                        )
+                    ),
+                    React.createElement('main', { className: "flex-grow container mx-auto px-4 py-8" }, renderContent()),
+                    React.createElement('footer', { className: "bg-indigo-800 p-4 text-white text-center text-sm mt-8" },
+                        React.createElement('p', null, `© ${new Date().getFullYear()} Elyx Life. All rights reserved.`)
+                    )
+                )
             );
         }
 
-        // --- Render the App ---
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(React.createElement(App, null));
     </script>
 </body>
 </html>
