@@ -1,5 +1,14 @@
-# backend/requirements.txt
-Flask
-Flask-Cors
-requests
-gunicorn # Add this line
+# --- Core Web Framework ---
+Flask==3.0.3          # The web server framework
+Flask-Cors==4.0.1       # To handle requests from your Netlify frontend
+
+# --- Production Server ---
+gunicorn==22.0.0      # The server that runs your Flask app in production on Render
+
+# --- Common for LLM/API Services ---
+python-dotenv==1.0.1  # For managing local environment variables (API keys, etc.)
+requests==2.32.3      # For making API calls to other services (like an LLM provider)
+
+# --- Add Specific LLM SDKs if needed ---
+# openai==1.35.3      # Example: if you are calling the OpenAI API
+# google-generativeai # Example: if you are using Google's Gemini
