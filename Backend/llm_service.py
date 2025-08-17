@@ -1,5 +1,17 @@
 # llm_service.py
-from flask import Flask, request, jsonify
+"""
+Elyx Life - Synthetic Journey Generator & Keyword Agent
+Produces an 8-month simulated WhatsApp-style conversation timeline for a member (Rohan)
+conforming to hackathon constraints, plus a keyword-based explain endpoint.
+
+Usage:
+    python llm_service.py
+Backend endpoints:
+    POST /api/generate-journey   -> returns generated journey JSON (32 weeks ~ 8 months)
+    POST /api/explain-decision  -> query + journeyData -> explanation + detected_sentiment
+    GET  /api/journey-file      -> returns last saved journey JSON (if present)
+"""
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 import json
 import os
@@ -11,9 +23,23 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-# --------------------------
-# Member profile (required)
-# --------------------------
+# ---------------------------
+# Configuration / Constants
+# ---------------------------
+SEED = 42
+random.seed(SEED)
+
+WEEKS = 32  # ~8 months
+DIAGNOSTIC_INTERVAL_WEEKS = 12
+EXERCISE_UPDATE_INTERVAL_WEEKS = 2
+TRAVEL_EVERY_N_WEEKS = 4
+AVG_MEMBER_QUERIES_PER_WEEK = 5  # average; we'll randomize within [1,5] or 3-6 for variability
+MEMBER_HOURS_PER_WEEK = 5  # informational guidance in messages
+ADHERENCE_PROBABILITY = 0.5  # ~50% adherence
+
+OUTPUT_JOURNEY_FILEPATH = "/tmp/elyx_generated_journey.json"
+
+# Member (Rohan) profile (used to generate contextual messages)
 ROHAN_PROFILE = {
     "name": "Rohan Patel",
     "age": 46,
@@ -24,840 +50,848 @@ ROHAN_PROFILE = {
     "health_goals": [
         "Reduce risk of heart disease (ApoB focus)",
         "Enhance cognitive function & focus",
-        "Annual full-body screenings"
+        "Annual full-body health screens"
     ],
-    "chronic_condition": "mild metabolic dyslipidemia (elevated ApoB)",  # one chronic condition
-    "baseline_commitment_hours_per_week": 5
+    "chronic_condition": "elevated_apob",  # single chronic issue for scenario
+    "time_commitment_hours_per_week": MEMBER_HOURS_PER_WEEK,
+    "values": "Analytical, efficient, evidence-driven",
+    "tech": "Garmin watch; considering Oura / Whoop"
 }
 
-# --------------------------
 # Elyx team personas
-# --------------------------
 ELYX_TEAM_PERSONAS = {
     "Ruby": {"role": "Concierge / Orchestrator", "voice": "Empathetic, organized, proactive"},
-    "Dr. Warren": {"role": "Medical Strategist", "voice": "Authoritative, precise, scientific"},
+    "Dr. Warren": {"role": "Medical Strategist", "voice": "Authoritative, precise, clinical"},
     "Advik": {"role": "Performance Scientist", "voice": "Analytical, curious, data-driven"},
     "Carla": {"role": "Nutritionist", "voice": "Practical, educational, behavioral-change focused"},
-    "Rachel": {"role": "PT / Physiotherapist", "voice": "Direct, encouraging, function-first"},
-    "Neel": {"role": "Concierge Lead", "voice": "Strategic, reassuring, big-picture"}
+    "Rachel": {"role": "PT / Physiotherapist", "voice": "Direct, encouraging, functional movement focus"},
+    "Neel": {"role": "Concierge Lead", "voice": "Strategic, high-level, reassuring"}
 }
 
-# --------------------------
-# Knowledge base (enrichment)
-# --------------------------
+# Expandable knowledge base (can be enriched later)
 ELYX_KNOWLEDGE_BASE = {
+    "apob": {
+        "specialist": "Dr. Warren",
+        "summary": "ApoB is a marker associated with atherogenic lipoprotein particles; elevated levels increase cardiovascular risk.",
+        "advice": "Prioritize dietary fiber, reduce saturated fat, increase cardio and weight-resistance training; re-test quarterly and consider specialist lipid clinic if persistently high."
+    },
     "hypertension": {
         "specialist": "Dr. Warren",
-        "summary": "Hypertension is sustained high blood pressure and increases cardiovascular risk.",
-        "advice": "Monitor BP regularly, consider DASH-style diet, aerobic exercise, and medical review."
+        "summary": "High blood pressure increases cardiovascular risk. We track home BP to understand variability.",
+        "advice": "Salt moderation, regular aerobic exercise, home BP logs, and consider medication only after specialist review."
     },
     "sleep apnea": {
         "specialist": "Advik",
-        "summary": "Sleep apnea is disrupted breathing during sleep that reduces recovery and HRV.",
-        "advice": "Consider a sleep study; improve sleep hygiene and weight management; CPAP if confirmed."
+        "summary": "Sleep apnea reduces quality of sleep and impairs recovery and HRV.",
+        "advice": "Overnight oximetry/sleep study if suspected; positional therapy, weight loss, CPAP as appropriate."
     },
-    "migraines": {
+    "migraine": {
         "specialist": "Carla",
-        "summary": "Migraines are recurrent severe headaches often triggered by food, stress, sleep.",
-        "advice": "Keep a headache diary, review dietary triggers, consider magnesium supplementation after review."
+        "summary": "Migraines are common and can be triggered by diet, sleep, and stress.",
+        "advice": "Start a trigger diary, evaluate magnesium status, consider specialist if frequent."
+    },
+    "travel protocol": {
+        "specialist": "Advik",
+        "summary": "Jet-lag protocols focus on timed light exposure, meal timing, and sleep hygiene to shift circadian rhythm.",
+        "advice": "Pre-shift wake time, morning light on arrival, avoid long naps day 1, and time caffeine strategically."
     },
     "common cold": {
         "specialist": "Ruby",
-        "summary": "Viral URIs that usually resolve with rest and symptomatic care.",
-        "advice": "Initiate Sick Day Protocol: rest, hydration, postpone critical meetings if needed; we can help with logistics."
-    },
-    "gerd": {
-        "specialist": "Carla",
-        "summary": "Acid reflux that can be managed with dietary changes and timing of meals.",
-        "advice": "Avoid trigger foods, avoid late large meals, elevate head of bed when needed."
+        "summary": "Common viral upper respiratory tract infection.",
+        "advice": "Rest, hydration, Elyx Sick Day Protocol; we can reschedule commitments."
     }
 }
 
-# --------------------------
-# Global simulated metrics
-# --------------------------
-CURRENT_HEALTH_METRICS = {
-    "HRV": 45,  # ms
-    "RestingHR": 65,  # bpm
-    "GlucoseAvg": 105,  # mg/dL
-    "ApoB": 105,  # mg/dL (elevated)
-    "RecoveryScore": 70,  # %
-    "DeepSleep": 60,  # minutes
-    "POTS_symptoms": "moderate",
-    "BackPain": "mild"
+
+# ---------------------------
+# Template pools (avoid >2 repeats)
+# ---------------------------
+# We'll keep counts to avoid exceeding 2 uses per template.
+TEMPLATE_USAGE_COUNTER = {}
+
+def choose_template(pool_name, pool):
+    """Pick a template while avoiding overuse of exact strings (>2 usage)."""
+    # ensure counter structure
+    if pool_name not in TEMPLATE_USAGE_COUNTER:
+        TEMPLATE_USAGE_COUNTER[pool_name] = {}
+    # filter to templates used <2 times
+    candidates = [t for t in pool if TEMPLATE_USAGE_COUNTER[pool_name].get(t, 0) < 2]
+    if not candidates:
+        # reset small counts to avoid getting stuck but keep variety by resetting counters for pool
+        TEMPLATE_USAGE_COUNTER[pool_name] = {}
+        candidates = pool[:]
+    choice = random.choice(candidates)
+    TEMPLATE_USAGE_COUNTER[pool_name][choice] = TEMPLATE_USAGE_COUNTER[pool_name].get(choice, 0) + 1
+    return choice
+
+# Member message templates by topic
+MEMBER_TEMPLATES = {
+    "initial": [
+        "Honestly, things feel ad-hoc. I need a coordinated plan that fits my travel and work rhythm.",
+        "I feel overwhelmed with my current routine and data from my Garmin looks inconsistent. Can we set a proper plan?"
+    ],
+    "diagnostic_confirm": [
+        "Confirm the diagnostic panel next Tuesday morning — can a phlebotomist come to the office?",
+        "Tuesday morning works for diagnostics. Please confirm which biomarkers you'll check."
+    ],
+    "apo_question": [
+        "What's the plan for my ApoB? I want concrete steps and the expected timeline for changes.",
+        "ApoB is worrying. What high-impact changes should I prioritize right away?"
+    ],
+    "travel_notice": [
+        "Heads up — I have a last-minute trip to London next week. Can we send a jet-lag plan?",
+        "Unexpected travel to Seoul for 4 days starting Thursday. Need a quick protocol."
+    ],
+    "adherence_deviation": [
+        "I missed two sessions this week because of travel. Can we adapt the plan?",
+        "Busy week — couldn't follow the workouts. Suggest alternatives I can do in hotels."
+    ],
+    "status_update": [
+        "Quick check-in: feeling slightly better this week, energy is improving.",
+        "Recovery scores dropped this week; feeling a bit flat."
+    ],
+    "question_general": [
+        "Any new recommendations based on my latest metrics?",
+        "What should I focus on this week to make the most progress?"
+    ],
+    "sick_query": [
+        "My son has a cold — best way for me to avoid getting sick during a heavy week?",
+        "I'm starting to feel scratchy throat. What's the Elyx sick-day suggestion?"
+    ],
+    "nutrition_travel": [
+        "I'm finding it hard to source the ingredients Carla recommended while traveling. Alternatives?",
+        "Low on fiber while traveling — what's the minimum effective approach?"
+    ],
+    "back_pain": [
+        "My lower back flared up after the flight. What’s the next step?",
+        "Couch stretch helped a bit but back still sore. Any escalation?"
+    ],
+    "cognitive": [
+        "Would short meditation blocks actually help with my focus?",
+        "Hard to focus during late-night calls. Any quick strategies?"
+    ]
 }
 
-# Used to avoid message repetition more than twice
-MESSAGE_HISTORY = {}
-MAX_REPEAT = 2
+# Team reply templates (fallback) by persona
+TEAM_TEMPLATES = {
+    "Ruby": [
+        "Hi Rohan, Ruby here. Thanks for flagging this — I’ll coordinate the logistics and loop in the right specialist.",
+        "Ruby: We can arrange a phlebotomist at your office to make the diagnostic convenient. Confirm availability."
+    ],
+    "Dr. Warren": [
+        "Dr. Warren: Reviewed your numbers. This suggests we should focus on metabolic optimization and re-test in 8–12 weeks.",
+        "Dr. Warren: Elevated ApoB remains a concern. We'll prioritize dietary fiber and appropriate exercise adjustments."
+    ],
+    "Advik": [
+        "Advik: For travel, we’ll use a compressed jet-lag protocol — timed light, hydration, and meal timing to shift circadian rhythm.",
+        "Advik: HRV dips usually reflect fragmented sleep; let’s adjust training load and test a 10-day sleep routine."
+    ],
+    "Carla": [
+        "Carla: For stress and energy, focus on hydration and mindful protein-forward breakfasts. Travel-proof snack options sent.",
+        "Carla: Low on fiber when traveling? Try a shelf-stable soluble-fiber powder and portable high-fiber bars."
+    ],
+    "Rachel": [
+        "Rachel: Try the 2-minute couch stretch and a 5-min mobility sequence before flights.",
+        "Rachel: If workouts are missed, a 15-minute bodyweight circuit will retain gains and maintain momentum."
+    ],
+    "Neel": [
+        "Neel: Zooming out — trends look right despite travel volatility. Let’s lock the next quarter while keeping things low cognitive-load.",
+        "Neel: I’ll re-schedule non-critical items so you can prioritize recovery during travel."
+    ]
+}
 
-# Keep track of recent topics member asked (memory)
-ROHAN_ASKED_TOPICS = set()
+# ---------------------------
+# Utilities
+# ---------------------------
+def safe_now():
+    return datetime.utcnow()
 
-# --------------------------
-# Helper utilities
-# --------------------------
-def pick_unique_message(pool, tag):
+def detect_sentiment(text: str):
     """
-    Pick a message from pool ensuring any identical text isn't repeated > MAX_REPEAT.
-    tag is used to track repeats across simulation.
-    """
-    random.shuffle(pool)
-    for candidate in pool:
-        key = f"{tag}:{candidate}"
-        count = MESSAGE_HISTORY.get(key, 0)
-        if count < MAX_REPEAT:
-            MESSAGE_HISTORY[key] = count + 1
-            return candidate
-    # fallback: return random (even if repeat) but increment
-    candidate = random.choice(pool)
-    key = f"{tag}:{candidate}"
-    MESSAGE_HISTORY[key] = MESSAGE_HISTORY.get(key, 0) + 1
-    return candidate
-
-def detect_sentiment(text):
-    """
-    Lightweight rule-based sentiment detection for tone-awareness.
-    Returns: 'angry', 'frustrated', 'sad', 'curious', 'nonchalant', 'positive', 'neutral'
+    Lightweight lexicon-based sentiment detection for queries.
+    Returns: 'angry', 'frustrated', 'curious', 'sad', 'positive', 'nonchalant', 'neutral'
     """
     t = text.lower()
-    if re.search(r"\b(angry|furious|irritat|mad|upset|pissed)\b", t):
+    if re.search(r"\b(frustrat|angry|upset|furious|annoyed)\b", t):
         return "angry"
-    if re.search(r"\b(frustrat|disappoint|not happy|fed up)\b", t):
-        return "frustrated"
-    if re.search(r"\b(sad|discourag|down)\b", t):
+    if re.search(r"\b(sad|discourag|disappointed|down)\b", t):
         return "sad"
-    if re.search(r"\b(why|how come|explain|curious|question)\b", t):
+    if re.search(r"\b(why|how come|explain|curious|what happened|why did)\b", t):
         return "curious"
-    if re.search(r"\b(ok|fine|whatever|nonchalant|meh)\b", t):
-        return "nonchalant"
-    if re.search(r"\b(great|good|happy|pleased|thanks|thank you)\b", t):
+    if re.search(r"\b(great|good|amazing|happy|glad)\b", t):
         return "positive"
+    if re.search(r"\b(okay|fine|meh|whatever|nonchalant)\b", t):
+        return "nonchalant"
+    # default neutral
     return "neutral"
 
-def generate_weekly_report(metrics, week_num):
-    adherence_hours = round(random.uniform(3.5, 5.5), 1)  # around 5 hours target
-    trend_notes = []
-    if metrics["ApoB"] >= 100:
-        trend_notes.append("ApoB remains elevated — continued focus on diet & exercise.")
-    if metrics["HRV"] >= 55:
-        trend_notes.append("HRV trending up — recovery improving.")
-    if metrics["RecoveryScore"] < 50:
-        trend_notes.append("Recovery is low — consider more rest this week.")
-    if not trend_notes:
-        trend_notes.append("Overall stable progress.")
-    report_lines = [
-        f"Weekly Report — Week {week_num}",
-        f"- Hours committed this week (self-reported): {adherence_hours}h (target ~{ROHAN_PROFILE['baseline_commitment_hours_per_week']}h)",
-        f"- HRV: {metrics['HRV']} ms",
-        f"- Recovery: {metrics['RecoveryScore']}%",
-        f"- Glucose Avg: {metrics['GlucoseAvg']} mg/dL",
-        f"- ApoB: {metrics['ApoB']} mg/dL",
-        "- Notes:"
-    ] + [f"  • {n}" for n in trend_notes]
-    urgency = "⚠️" if metrics["ApoB"] >= 100 or metrics["RecoveryScore"] < 45 else "✅"
-    report_lines.append(f"{urgency} Recommended focus for next week: {('sleep and recovery' if metrics['RecoveryScore']<60 else 'maintain current plan')}.")
-    return {
-        "type": "weekly_report",
-        "sender": "Elyx System",
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "content": "\n".join(report_lines),
-        "decisionRationale": "Weekly synthetic summary to track adherence and biomarker trends.",
-        "healthMetricsSnapshot": copy.deepcopy(metrics),
-        "serviceInteractionType": "system_report",
-        "pillar": "All"
-    }
+def abbreviate_ts(dt: datetime):
+    return dt.strftime("%Y-%m-%d %H:%M")
 
-def generate_team_nudge(role, metrics):
-    nudges = [
-        f"{role} here — quick check: how's the new routine working for you this week?",
-        f"{role} checking in. Noticed a dip in recovery recently — any barriers we should know about?",
-        f"{role} here. If you're finding meals hard when traveling, we can swap to simpler options. Want me to propose alternatives?"
-    ]
-    content = pick_unique_message(nudges, f"nudge:{role}")
-    return {
-        "type": "message",
-        "sender": role,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "content": content,
-        "decisionRationale": "Proactive engagement nudges to maintain adherence and surface barriers early.",
-        "healthMetricsSnapshot": copy.deepcopy(metrics),
-        "serviceInteractionType": "engagement_nudge",
-        "pillar": "Engagement",
-        "specialistInvolved": role
-    }
-
-# --------------------------
-# Core LLM-like response generator (simulated)
-# --------------------------
-def generate_llm_response(role, prompt_context, current_metrics, chat_history, journey_data_so_far):
-    """
-    Returns a tuple:
-    (response_text, decision_rationale, pillar_impact, health_metrics_snapshot,
-     intervention_effect, monetary_factor, time_efficiency, service_interaction_type,
-     specialist_involved, next_steps, detected_sentiment)
-    """
-    prompt_lower = (prompt_context or "").lower()
-    snapshot = copy.deepcopy(current_metrics)
-    decision_rationale = None
-    pillar_impact = None
-    intervention_effect = None
-    monetary_factor = None
-    time_efficiency = None
-    service_interaction_type = "general"
-    specialist_involved = role if role != "Rohan" else None
-    next_steps = None
-
-    # sentiment detection for tone-aware replies (if generated on behalf of team use prompt_context for sentiment)
-    detected_sentiment = detect_sentiment(prompt_context or "")
-
-    # -- Member (Rohan) messages (simulated) --
-    if role == "Rohan":
-        service_interaction_type = "member-initiated query"
-        # Pools for variety
-        pool = []
-        if "initial" in prompt_lower or "onboard" in prompt_lower:
-            pool = [
-                "I'm feeling overwhelmed with my ad-hoc health routine. I need something coordinated and simple.",
-                "Garmin HR seems off even on rest days — I'm not sure I'm interpreting this correctly. Need a plan.",
-                "I want a structured approach that's compatible with my travel and work schedule."
-            ]
-        elif "apo" in prompt_lower or "apob" in prompt_lower or "lipid" in prompt_lower:
-            pool = [
-                "What's the plan for my elevated ApoB? I want clear, high-impact steps.",
-                "How aggressive should we be on ApoB? Diet first or consider medication later?"
-            ]
-        elif "travel" in prompt_lower or "trip" in prompt_lower:
-            pool = [
-                "I have a last-minute trip to London. Can you give me a quick jet-lag and workout plan?",
-                "Travel next week — what are the minimum steps to avoid derailing progress?"
-            ]
-        elif "back" in prompt_lower or "pain" in prompt_lower:
-            pool = [
-                "My lower back flared after the flight. Couch stretch helped a bit, but it's still sore.",
-                "Any mobility flows I can do in a hotel room to help my back?"
-            ]
-        elif "headache" in prompt_lower or "migraine" in prompt_lower:
-            pool = [
-                "I've been getting frequent headaches. Could these be migraines and what should I track?",
-                "Any quick dietary things I can try to rule out triggers for these headaches?"
-            ]
-        elif "time" in prompt_lower or "busy" in prompt_lower or "quick" in prompt_lower:
-            pool = [
-                "I only have short windows each day — what's the minimal high-impact routine?",
-                "How do I get the most benefit with only ~5 hours/week?"
-            ]
-        else:
-            pool = [
-                "Quick check-in: any recommendations for this week?",
-                "Just checking — what's the highest-leverage action right now?"
-            ]
-
-        response = pick_unique_message(pool, f"rohan_pool:{prompt_lower[:30]}")
-        # set a likely sentiment based on current metrics
-        if current_metrics["RecoveryScore"] < 50:
-            detected_sentiment = random.choice(["frustrated", "sad"])
-        elif current_metrics["ApoB"] > 100:
-            detected_sentiment = detected_sentiment or "curious"
-        else:
-            detected_sentiment = detected_sentiment or "neutral"
-
-        return (response, None, "MemberConcerns", snapshot, None, None, None, service_interaction_type, None, None, detected_sentiment)
-
-    # -- Team responses --
-    # First check knowledge base hits
-    for topic, kb in ELYX_KNOWLEDGE_BASE.items():
-        if topic in prompt_lower:
-            specialist_involved = kb["specialist"]
-            response_candidates = [
-                f"Hi Rohan, {specialist_involved} here. That's a great question about {topic}. {kb['summary']} In your case: {kb['advice']}",
-                f"{specialist_involved}: Thanks for asking. {kb['summary']} For you specifically, considering your history, {kb['advice']}"
-            ]
-            response_text = pick_unique_message(response_candidates, f"kb:{topic}")
-            decision_rationale = f"Provide evidence-based guidance on {topic} and recommend targeted diagnostic follow-up if indicated."
-            pillar_impact = "Clinical Education"
-            next_steps = f"Offer consultation with {specialist_involved} and consider targeted diagnostics."
-            return (response_text, decision_rationale, pillar_impact, snapshot, None, None, None, "intervention_update", specialist_involved, next_steps, detect_sentiment(response_text))
-
-    # Otherwise, fall back to role-specific behaviors
-    if role == "Ruby":
-        # Scheduling / concierge tasks
-        response_candidates = [
-            "Hi Rohan — thanks, I’ve flagged this for Dr. Warren and will coordinate medical records and scheduling.",
-            "Ruby here. I'll arrange a phlebotomist to collect your diagnostic panel at your office next Tuesday morning to save time.",
-            "I hear you. I'll coordinate with Sarah and the team to consolidate records and minimize your admin."
-        ]
-        response_text = pick_unique_message(response_candidates, "ruby_sched")
-        decision_rationale = "Concierge action to reduce friction and ensure tests/scheduling occur with minimal disruption."
-        pillar_impact = "Logistics & Coordination"
-        time_efficiency = "High"
-        next_steps = "Ruby to confirm appointment and logistics with Sarah."
-        return (response_text, decision_rationale, pillar_impact, snapshot, None, None, time_efficiency, "proactive_checkin", "Ruby", next_steps, detect_sentiment(response_text))
-
-    if role == "Dr. Warren":
-        # Medical strategy: interpret labs and flag next steps
-        if "apo" in prompt_lower or "apob" in prompt_lower or "diagnostic" in prompt_lower:
-            if current_metrics["ApoB"] < 90:
-                effect_text = "ApoB is improved — continue current lifestyle plan and reassess in next panel."
-                intervention_effect = "effective"
-            else:
-                effect_text = "ApoB remains elevated — intensify dietary intervention and re-assess."
-                intervention_effect = "partially effective"
-            response_text = (f"Dr. Warren here. Based on recent metrics (ApoB: {current_metrics['ApoB']} mg/dL), {effect_text} "
-                             "We'll prioritize dietary and exercise changes and re-test in 3 months.")
-            decision_rationale = "Prioritize risk reduction for cardiovascular disease; prefer lifestyle first, escalate if insufficient."
-            pillar_impact = "Metabolic & Cardiovascular"
-            next_steps = "Carla to refine diet; Rachel to adjust exercise intensity; re-test scheduled in 3 months."
-            monetary_factor = "Cost-effective preventative approach"
-            return (response_text, decision_rationale, pillar_impact, snapshot, intervention_effect, monetary_factor, None, "diagnostic_results_review", "Dr. Warren", next_steps, detect_sentiment(response_text))
-
-        # generic Dr. Warren checks
-        response_text = "Dr. Warren here. We'll interpret results in context and avoid knee-jerk medication choices unless clinically required."
-        decision_rationale = "Ensure safe, evidence-based approach to any medical intervention."
-        pillar_impact = "Clinical Safety"
-        return (response_text, decision_rationale, pillar_impact, snapshot, None, None, None, "advice", "Dr. Warren", None, detect_sentiment(response_text))
-
-    if role == "Carla":
-        # Nutrition advice
-        response_candidates = [
-            "Carla here. For ApoB focus, prioritize soluble fiber, reduce saturated fats, and increase oily fish/plant sterols where possible.",
-            "Carla: Practical tip — when traveling, aim for lean protein, steamed veg, and avoid heavy fried items to limit ApoB spikes.",
-            "For digestion and headaches, keep a simple food log for 2 weeks to identify potential triggers like aged cheese or caffeine."
-        ]
-        response_text = pick_unique_message(response_candidates, "carla_adv")
-        decision_rationale = "Deliver practical, behavior-focused nutrition advice tailored to frequent travel and limited prep time."
-        pillar_impact = "Nutrition"
-        next_steps = "Provide a travel-friendly meal list and simple swaps."
-        time_efficiency = "High (small swaps)"
-        return (response_text, decision_rationale, pillar_impact, snapshot, None, None, time_efficiency, "intervention_update", "Carla", next_steps, detect_sentiment(response_text))
-
-    if role == "Rachel":
-        # Exercise and mobility updates every 2 weeks (frontend should call accordingly)
-        response_candidates = [
-            "Rachel here. Let's introduce a progressive 3-week block emphasizing posterior chain strength and core for your back.",
-            "Rachel: Try this 12-minute hotel room routine focusing on glute activation and thoracic mobility.",
-            "We will adapt the program to bodyweight alternatives when traveling; goal: maintain stimulus and reduce low-back flare-ups."
-        ]
-        response_text = pick_unique_message(response_candidates, "rachel_plan")
-        decision_rationale = "Adjust exercise prescription based on travel and symptom report to reduce injury risk and improve function."
-        pillar_impact = "Structural Health"
-        next_steps = "Start the new block next Monday; report soreness and adherence."
-        time_efficiency = "Low time cost, focused effect"
-        return (response_text, decision_rationale, pillar_impact, snapshot, None, None, time_efficiency, "exercise_update", "Rachel", next_steps, detect_sentiment(response_text))
-
-    if role == "Advik":
-        # Travel / sleep / HRV / recovery
-        if "travel" in prompt_lower or "jet" in prompt_lower:
-            response_text = ("Advik here. For last-minute travel: compressed light-exposure protocol, strategic caffeine timing, and short pre-flight naps. "
-                             "We'll send tailored times based on your flight schedule.")
-            decision_rationale = "Mitigate circadian disruption and POTS symptoms during international travel."
-            pillar_impact = "Sleep & Autonomic"
-            next_steps = "Provide specific light/caffeine schedule for flights."
-            time_efficiency = "High"
-            return (response_text, decision_rationale, pillar_impact, snapshot, None, None, time_efficiency, "travel_protocol", "Advik", next_steps, detect_sentiment(response_text))
-
-        # general advik advice
-        response_candidates = [
-            "Advik: Small changes to sleep timing and light exposure can shift circadian rhythm quickly when traveling.",
-            "Advik here. HRV is influenced by sleep consistency and hydration — small wins compound."
-        ]
-        response_text = pick_unique_message(response_candidates, "advik_common")
-        decision_rationale = "Performance-science-based recommendations to improve recovery and HRV."
-        pillar_impact = "Recovery & Sleep"
-        return (response_text, decision_rationale, pillar_impact, snapshot, None, None, None, "intervention_update", "Advik", None, detect_sentiment(response_text))
-
-    if role == "Neel":
-        response_candidates = [
-            "Neel here. We're monitoring long-term ROI of the plan — small improvements now reduce future clinical risk.",
-            "Neel: We can shift strategy if preferences or logistics demand it — your priorities guide the plan."
-        ]
-        response_text = pick_unique_message(response_candidates, "neel_tone")
-        decision_rationale = "High-level relationship management and strategy alignment."
-        pillar_impact = "Strategy"
-        return (response_text, decision_rationale, pillar_impact, snapshot, None, None, None, "relationship", "Neel", None, detect_sentiment(response_text))
-
-    # fallback generic
-    response_text = f"{role} here. Thanks — we will review this and respond with an actionable plan."
-    return (response_text, "Fallback reply", "General", snapshot, None, None, None, "general", role, None, detect_sentiment(response_text))
-
-# --------------------------
-# API: Generate full 8-month journey
-# --------------------------
-@app.route('/api/generate-journey', methods=['POST'])
-def api_generate_journey():
-    """
-    Generates an 8-month (approx 32-week) journey adhering to constraints:
-     - Diagnostic panel every 12 weeks
-     - Up to ~5 member-initiated conversations per week on average
-     - Exercises updated every 2 weeks
-     - Member travels at least 1 week out of every 4 weeks
-     - Member commits ~5 hours / week (simulated)
-     - ~50% adherence to plan (randomized)
-     - Avoid message repetition > MAX_REPEAT
-    """
-    # Reset globals for each simulation
-    global CURRENT_HEALTH_METRICS, MESSAGE_HISTORY, ROHAN_ASKED_TOPICS
-    MESSAGE_HISTORY = {}
-    ROHAN_ASKED_TOPICS.clear()
-
-    # Start fresh baseline metrics
-    CURRENT_HEALTH_METRICS = {
-        "HRV": 45,
-        "RestingHR": 65,
-        "GlucoseAvg": 105,
-        "ApoB": 105,
-        "RecoveryScore": 70,
-        "DeepSleep": 60,
-        "POTS_symptoms": "moderate",
-        "BackPain": "mild"
-    }
-
+# ---------------------------
+# Core generator
+# ---------------------------
+def generate_8_month_journey(seed=SEED):
+    random.seed(seed)
     journey = []
     chat_history = []
+    timeline_events = []
 
-    # onboarding
-    rohan_text, _, _, metrics_snapshot, _, _, _, _, _, _, rohan_sentiment = generate_llm_response("Rohan", "initial onboarding", CURRENT_HEALTH_METRICS, chat_history, journey)
-    chat_history.append({"role": "user", "parts": [{"text": rohan_text}]})
-    ruby_resp = generate_llm_response("Ruby", "welcome and consolidate onboarding", CURRENT_HEALTH_METRICS, chat_history, journey)[0]
-    chat_history.append({"role": "model", "parts": [{"text": ruby_resp}]})
-    journey.append({
-        "type": "event",
-        "eventId": "onboarding_start",
-        "timestamp": datetime(2025, 8, 1).strftime("%Y-%m-%d %H:%M"),
-        "description": "Member Onboarding Initiated",
-        "details": f"Member note: {rohan_text}",
-        "decisionRationale": "Standard Elyx onboarding: consolidate records, establish baseline plan.",
-        "healthMetricsSnapshot": metrics_snapshot
-    })
+    # reset template usage counter
+    global TEMPLATE_USAGE_COUNTER
+    TEMPLATE_USAGE_COUNTER = {}
 
-    # Simulate 32 weeks (~8 months)
-    start_date = datetime(2025, 8, 1)
+    # start date anchored (we'll use 2025-08-01 as before)
+    start_date = datetime(2025, 8, 1, 9, 0)  # 9 AM local-ish
     current_date = start_date
 
-    weeks = 32
-    for week in range(1, weeks + 1):
+    # initial health metrics
+    metrics = {
+        "HRV": 45, "RestingHR": 65, "GlucoseAvg": 105, "ApoB": 105,
+        "RecoveryScore": 70, "DeepSleep": 60, "POTS_symptoms": "moderate", "BackPain": "mild"
+    }
+
+    # onboarding messages
+    # Rohan initial
+    initial_rohan = choose_template("member.initial", MEMBER_TEMPLATES["initial"])
+    journey.append({
+        "type": "message",
+        "sender": ROHAN_PROFILE["name"],
+        "timestamp": abbreviate_ts(current_date),
+        "content": initial_rohan,
+        "serviceInteractionType": "onboarding",
+        "decisionRationale": "Member initiated onboarding with desire for coordinated plan.",
+        "healthMetricsSnapshot": copy.deepcopy(metrics),
+        "specialistInvolved": None
+    })
+    chat_history.append({"role": "user", "parts": [{"text": initial_rohan}]})
+
+    # Ruby replies
+    current_date += timedelta(hours=2)
+    ruby_reply = choose_template("team.ruby", TEAM_TEMPLATES["Ruby"])
+    journey.append({
+        "type": "message",
+        "sender": "Ruby",
+        "timestamp": abbreviate_ts(current_date),
+        "content": ruby_reply,
+        "serviceInteractionType": "onboarding_response",
+        "decisionRationale": "Concierge initiates record consolidation and schedules initial assessments.",
+        "healthMetricsSnapshot": copy.deepcopy(metrics),
+        "specialistInvolved": "Ruby",
+        "nextSteps": "Ruby to coordinate medical records and schedule movement assessment."
+    })
+    chat_history.append({"role": "model", "parts": [{"text": ruby_reply}]})
+
+    # Simulate weeks
+    # We'll create a robust schedule: weekly loop with sub-events each week
+    for week in range(1, WEEKS + 1):
+        # advance one week (we'll use midweek messaging times)
         current_date += timedelta(weeks=1)
 
-        # --- Weekly synthetic report added at end of each week ---
-        # We'll append the report at a consistent timestamp (Sunday 20:00)
-        report = generate_weekly_report(CURRENT_HEALTH_METRICS, week)
-        report["timestamp"] = (current_date + timedelta(days=6)).strftime("%Y-%m-%d 20:00")
-        journey.append(report)
-
-        # --- Exercises update every 2 weeks ---
-        if week % 2 == 0:
-            rachel_msg, rationale, pillar, metrics_snapshot, effect, monetary, time_eff, svc_type, specialist, next_steps, sentiment = generate_llm_response("Rachel", f"exercise update week {week}", CURRENT_HEALTH_METRICS, chat_history, journey)
+        # 1) Weekly summary / proactive check-ins: once per week, send a short team update alternating Neel/Ruby/Dr. Warren/Advik
+        if week % 1 == 0:
+            # choose a proactive persona
+            persona = random.choice(list(ELYX_TEAM_PERSONAS.keys()))
+            # create content depending on persona and metrics
+            if persona == "Dr. Warren":
+                content = f"Dr. Warren: Quick metabolic check-in. ApoB is tracking at ~{metrics['ApoB']} mg/dL. We'll continue fiber + cardio and re-test in 8-12 weeks."
+                rationale = "Periodic metabolic monitoring and planning."
+            elif persona == "Advik":
+                content = f"Advik: Observing HRV ~{metrics['HRV']} ms and Recovery ~{metrics['RecoveryScore']}%. Recommend micro-sleep hygiene adjustments and slightly reduce training intensity if Recovery < 60%."
+                rationale = "Performance monitoring to adjust training load and sleep hygiene."
+            elif persona == "Carla":
+                content = f"Carla: For travel weeks, prioritize anchor breakfast (protein + fiber) and pack travel-proof snacks to maintain glycemic control."
+                rationale = "Nutritional strategy for travel weeks."
+            elif persona == "Rachel":
+                content = "Rachel: Quick mobility suggestion — perform the 2-minute couch stretch pre/post-flight to manage lower back tightness."
+                rationale = "Preventive mobility cue for frequent travelers."
+            else:  # Ruby or Neel
+                content = f"{persona}: We reviewed your week; trends look manageable given travel. We can consolidate next steps in one weekly note."
+                rationale = "High-level concierge check-in."
             journey.append({
                 "type": "message",
-                "sender": specialist or "Rachel",
-                "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
-                "content": rachel_msg,
-                "pillar": pillar,
+                "sender": persona,
+                "timestamp": abbreviate_ts(current_date + timedelta(hours=2)),
+                "content": content,
+                "serviceInteractionType": "proactive_checkin",
                 "decisionRationale": rationale,
-                "healthMetricsSnapshot": metrics_snapshot,
-                "interventionEffect": effect,
-                "serviceInteractionType": "exercise_update",
-                "specialistInvolved": specialist
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": persona
             })
-            chat_history.append({"role": "model", "parts": [{"text": rachel_msg}]})
+            chat_history.append({"role": "model", "parts": [{"text": content}]})
 
-            # 50% adherence logic
-            adhered = random.random() < 0.5
-            if not adhered:
-                # member deviates: ask for adaptation
-                rohan_msg, rohan_rationale, _, rohan_metrics, _, _, _, _, _, _, rohan_sentiment = generate_llm_response("Rohan", "deviate from exercise plan due to travel/time/soreness", CURRENT_HEALTH_METRICS, chat_history, journey)
-                journey.append({
-                    "type": "message",
-                    "sender": "Rohan",
-                    "timestamp": (current_date + timedelta(hours=4)).strftime("%Y-%m-%d %H:%M"),
-                    "content": rohan_msg,
-                    "pillar": "Adherence",
-                    "decisionRationale": rohan_rationale,
-                    "healthMetricsSnapshot": rohan_metrics,
-                    "serviceInteractionType": "member_adherence_report"
-                })
-                chat_history.append({"role": "user", "parts": [{"text": rohan_msg}]})
-                # Adaptive response from team
-                team = random.choice(["Rachel", "Advik"])
-                team_msg, team_rationale, team_pillar, team_metrics, team_effect, team_monetary, team_time, team_svc, team_specialist, team_next_steps, team_sentiment = generate_llm_response(team, "adapt to deviation", CURRENT_HEALTH_METRICS, chat_history, journey)
-                journey.append({
-                    "type": "message",
-                    "sender": team_specialist or team,
-                    "timestamp": (current_date + timedelta(hours=6)).strftime("%Y-%m-%d %H:%M"),
-                    "content": team_msg,
-                    "pillar": team_pillar,
-                    "decisionRationale": team_rationale,
-                    "healthMetricsSnapshot": team_metrics,
-                    "serviceInteractionType": "plan_adaptation",
-                    "specialistInvolved": team_specialist
-                })
-                chat_history.append({"role": "model", "parts": [{"text": team_msg}]})
-            else:
-                # member adhered and sends a short confirmation
-                rohan_msg, _, _, rohan_metrics, _, _, _, _, _, _, rohan_sentiment = generate_llm_response("Rohan", "adhere to exercise plan", CURRENT_HEALTH_METRICS, chat_history, journey)
-                journey.append({
-                    "type": "message",
-                    "sender": "Rohan",
-                    "timestamp": (current_date + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M"),
-                    "content": rohan_msg,
-                    "pillar": "Adherence",
-                    "healthMetricsSnapshot": rohan_metrics,
-                    "serviceInteractionType": "member_adherence_report"
-                })
-                chat_history.append({"role": "user", "parts": [{"text": rohan_msg}]})
-
-            # small metric tweaks from exercise update
-            CURRENT_HEALTH_METRICS["HRV"] = max(30, CURRENT_HEALTH_METRICS["HRV"] + random.randint(0, 3))
-            CURRENT_HEALTH_METRICS["RecoveryScore"] = min(95, CURRENT_HEALTH_METRICS["RecoveryScore"] + random.randint(0, 6))
-            CURRENT_HEALTH_METRICS["RestingHR"] = max(50, CURRENT_HEALTH_METRICS["RestingHR"] - random.randint(0, 1))
-
-        # --- Travel 1 week out of 4 (business trips) ---
-        if week % 4 == 0:
-            travel_start = current_date + timedelta(days=random.randint(1, 2))
-            # Pre-travel protocol
-            advik_msg, advik_rationale, advik_pillar, advik_metrics, _, _, advik_time, advik_svc, advik_specialist, advik_next_steps, advik_sentiment = generate_llm_response("Advik", f"travel protocol week {week}", CURRENT_HEALTH_METRICS, chat_history, journey)
-            journey.append({
-                "type": "message",
-                "sender": advik_specialist or "Advik",
-                "timestamp": travel_start.strftime("%Y-%m-%d %H:%M"),
-                "content": advik_msg,
-                "pillar": advik_pillar,
-                "decisionRationale": advik_rationale,
-                "healthMetricsSnapshot": advik_metrics,
-                "serviceInteractionType": "travel_protocol",
-                "specialistInvolved": advik_specialist
-            })
-            chat_history.append({"role": "model", "parts": [{"text": advik_msg}]})
-            # Travel event
-            journey.append({
-                "type": "event",
-                "eventId": f"travel_week_{week}",
-                "timestamp": travel_start.strftime("%Y-%m-%d %H:%M"),
-                "description": "Business travel (1 week)",
-                "details": "Jet lag mitigation, in-flight mobility and nutrition adjustments.",
-                "decisionRationale": "Mitigate travel disruption to health plan.",
-                "healthMetricsSnapshot": copy.deepcopy(CURRENT_HEALTH_METRICS),
-                "serviceInteractionType": "travel_event",
-                "specialistInvolved": "Advik, Ruby"
-            })
-            # post-travel check-in a week later
-            post_travel_date = travel_start + timedelta(days=7)
-            post_msg, post_rationale, post_pillar, post_metrics, _, _, _, post_svc, post_spec, post_next, post_sent = generate_llm_response("Advik", "post-travel check-in", CURRENT_HEALTH_METRICS, chat_history, journey)
-            journey.append({
-                "type": "message",
-                "sender": post_spec or "Advik",
-                "timestamp": post_travel_date.strftime("%Y-%m-%d %H:%M"),
-                "content": post_msg,
-                "pillar": post_pillar,
-                "decisionRationale": post_rationale,
-                "healthMetricsSnapshot": post_metrics,
-                "serviceInteractionType": "post_travel_check_in",
-                "specialistInvolved": post_spec
-            })
-            chat_history.append({"role": "model", "parts": [{"text": post_msg}]})
-
-            # Travel impact on metrics
-            CURRENT_HEALTH_METRICS["HRV"] = max(30, CURRENT_HEALTH_METRICS["HRV"] - random.randint(0, 6))
-            CURRENT_HEALTH_METRICS["DeepSleep"] = max(30, CURRENT_HEALTH_METRICS["DeepSleep"] - random.randint(0, 20))
-            CURRENT_HEALTH_METRICS["RecoveryScore"] = max(15, CURRENT_HEALTH_METRICS["RecoveryScore"] - random.randint(0, 12))
-
-        # --- Diagnostic panel every ~12 weeks (quarterly) ---
-        if week % 12 == 0:
-            # schedule message
-            ruby_msg, ruby_reason, _, _, _, _, _, _, _, ruby_next, ruby_sent = generate_llm_response("Ruby", f"schedule diagnostic panel week {week}", CURRENT_HEALTH_METRICS, chat_history, journey)
+        # 2) Diagnostic panels every DIAGNOSTIC_INTERVAL_WEEKS
+        if week % DIAGNOSTIC_INTERVAL_WEEKS == 0:
+            # schedule diagnostics
+            current_date_diag = current_date + timedelta(days=1)
+            diag_msg = f"Ruby: It's time for your quarterly diagnostic panel (week {week}). We can arrange a phlebotomist at your office. Please confirm availability."
             journey.append({
                 "type": "message",
                 "sender": "Ruby",
-                "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
-                "content": ruby_msg,
-                "decisionRationale": ruby_reason,
-                "healthMetricsSnapshot": copy.deepcopy(CURRENT_HEALTH_METRICS),
-                "serviceInteractionType": "diagnostic_scheduling"
+                "timestamp": abbreviate_ts(current_date_diag),
+                "content": diag_msg,
+                "serviceInteractionType": "diagnostic_scheduling",
+                "decisionRationale": "Quarterly biomarker monitoring as program requirement.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": "Ruby",
+                "nextSteps": "Schedule phlebotomist and run the panel."
             })
-            chat_history.append({"role": "model", "parts": [{"text": ruby_msg}]})
+            chat_history.append({"role": "model", "parts": [{"text": diag_msg}]})
 
-            # event: diagnostics scheduled
-            journey.append({
-                "type": "event",
-                "eventId": f"diagnostic_week_{week}",
-                "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
-                "description": "Quarterly Diagnostic Panel Scheduled",
-                "details": "Comprehensive blood panel including ApoB, glucose, lipids.",
-                "decisionRationale": "Program requirement: track biomarkers every 3 months.",
-                "healthMetricsSnapshot": copy.deepcopy(CURRENT_HEALTH_METRICS),
-                "serviceInteractionType": "diagnostic_event"
-            })
-
-            # results a week later (simulate modest change)
-            results_date = current_date + timedelta(days=7)
-            # simulate effect depending on prior interventions and adherence
-            if random.random() < 0.6:
-                # small improvement
-                CURRENT_HEALTH_METRICS["ApoB"] = max(70, CURRENT_HEALTH_METRICS["ApoB"] - random.randint(5, 20))
-                CURRENT_HEALTH_METRICS["HRV"] = min(80, CURRENT_HEALTH_METRICS["HRV"] + random.randint(1, 5))
-                CURRENT_HEALTH_METRICS["RecoveryScore"] = min(95, CURRENT_HEALTH_METRICS["RecoveryScore"] + random.randint(1, 8))
-            else:
-                # stable or slight worse
-                CURRENT_HEALTH_METRICS["ApoB"] = min(130, CURRENT_HEALTH_METRICS["ApoB"] + random.randint(-3, 6))
-                CURRENT_HEALTH_METRICS["RecoveryScore"] = max(20, CURRENT_HEALTH_METRICS["RecoveryScore"] + random.randint(-6, 4))
-
-            # create results message from Dr. Warren
-            dr_msg, dr_rationale, dr_pillar, dr_metrics, dr_effect, dr_mon, dr_time, dr_svc, dr_spec, dr_next, dr_sent = generate_llm_response("Dr. Warren", f"diagnostic results week {week}", CURRENT_HEALTH_METRICS, chat_history, journey)
+            # simulate Rohan confirming
+            confirm_text = choose_template("member.diagnostic_confirm", MEMBER_TEMPLATES["diagnostic_confirm"])
             journey.append({
                 "type": "message",
-                "sender": dr_spec or "Dr. Warren",
-                "timestamp": results_date.strftime("%Y-%m-%d %H:%M"),
+                "sender": ROHAN_PROFILE["name"],
+                "timestamp": abbreviate_ts(current_date_diag + timedelta(hours=2)),
+                "content": confirm_text,
+                "serviceInteractionType": "member_confirmation",
+                "decisionRationale": "Member confirmed diagnostic scheduling.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": None
+            })
+            chat_history.append({"role": "user", "parts": [{"text": confirm_text}]})
+
+            # simulate results a week later
+            results_date = current_date_diag + timedelta(days=7)
+            # change metrics slightly (ApoB may trend down/up depending on adherence)
+            if random.random() < ADHERENCE_PROBABILITY:
+                # adhere: small improvements
+                metrics["ApoB"] = max(70, metrics["ApoB"] - random.randint(3, 12))
+                metrics["HRV"] = min(90, metrics["HRV"] + random.randint(1, 5))
+                metrics["RecoveryScore"] = min(95, metrics["RecoveryScore"] + random.randint(1, 7))
+                effect = "improved"
+            else:
+                # non-adherence: static or worse
+                metrics["ApoB"] = metrics["ApoB"] + random.randint(0, 6)
+                metrics["HRV"] = max(30, metrics["HRV"] - random.randint(0, 4))
+                metrics["RecoveryScore"] = max(20, metrics["RecoveryScore"] - random.randint(0, 8))
+                effect = "partially effective"
+
+            dr_msg = (f"Dr. Warren: Your quarterly results show ApoB {metrics['ApoB']} mg/dL. "
+                      f"{'Good progress — keep going.' if effect == 'improved' else 'Requires continued attention and refined interventions.'}")
+            journey.append({
+                "type": "message",
+                "sender": "Dr. Warren",
+                "timestamp": abbreviate_ts(results_date),
                 "content": dr_msg,
-                "decisionRationale": dr_rationale,
-                "healthMetricsSnapshot": copy.deepcopy(CURRENT_HEALTH_METRICS),
-                "interventionEffect": dr_metrics,
-                "serviceInteractionType": "diagnostic_results_review",
-                "specialistInvolved": dr_spec
+                "serviceInteractionType": "diagnostic_results",
+                "decisionRationale": "Interpret diagnostic panel and recommend next steps.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "interventionEffect": effect,
+                "specialistInvolved": "Dr. Warren",
+                "nextSteps": "Carla to adjust diet; Rachel to update exercise intensity; re-test next quarter."
             })
             chat_history.append({"role": "model", "parts": [{"text": dr_msg}]})
 
-        # --- Member-initiated queries each week: up to 5 avg (simulate 1-5, weighted) ---
-        # We'll simulate ~1-5 per week with probabilities
-        num_queries = random.choices([1,2,3,4,5], weights=[30,30,20,12,8], k=1)[0]
-        for _q in range(num_queries):
-            # choose topic not recently asked if possible
-            topics = ["poor digestion", "stress", "sleep", "hrv", "cognitive function", "new product", "alternative exercise", "monetary_concern", "time_constraint", "general_query"]
-            available = [t for t in topics if t not in ROHAN_ASKED_TOPICS]
-            if not available:
-                ROHAN_ASKED_TOPICS.clear()
-                available = topics
-            chosen = random.choice(available)
-            ROHAN_ASKED_TOPICS.add(chosen)
+            # Rohan reaction
+            rohan_reaction = choose_template("member.apo_question", MEMBER_TEMPLATES["apo_question"])
+            journey.append({
+                "type": "message",
+                "sender": ROHAN_PROFILE["name"],
+                "timestamp": abbreviate_ts(results_date + timedelta(hours=3)),
+                "content": rohan_reaction,
+                "serviceInteractionType": "member_query",
+                "decisionRationale": "Member asks for clear steps & financial/time implications.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": None
+            })
+            chat_history.append({"role": "user", "parts": [{"text": rohan_reaction}]})
 
-            # Generate a member query
-            topic_prompts = {
-                "poor digestion": "I'm experiencing poor digestion. Any simple suggestions?",
-                "stress": "I'm feeling stressed. Any immediate tips?",
-                "sleep": "My sleep quality has been poor. Suggestions?",
-                "hrv": "How can I improve my HRV? What affects it most?",
-                "cognitive function": "How can I improve focus and cognitive resilience?",
-                "new product": "Any new wearables worth considering?",
-                "alternative exercise": "What exercises can I do in a hotel room?",
-                "monetary_concern": "I'm worried about costs. Any cheaper alternatives?",
-                "time_constraint": "I have limited time. What are quick high-impact actions?",
-                "general_query": "Any updates or new recommendations?"
+            # Carla + Rachel respond with plan adjustments
+            carla_plan = choose_template("team.carla", TEAM_TEMPLATES["Carla"])
+            journey.append({
+                "type": "message",
+                "sender": "Carla",
+                "timestamp": abbreviate_ts(results_date + timedelta(hours=5)),
+                "content": f"Carla: {carla_plan} We'll emphasize soluble fiber, plant-based proteins, and travel-friendly options.",
+                "serviceInteractionType": "intervention_update",
+                "decisionRationale": "Dietary refinement to lower ApoB and improve glycemic stability.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": "Carla"
+            })
+            chat_history.append({"role": "model", "parts": [{"text": carla_plan}]})
+
+            # Rachel exercise update following diagnostics
+            rachel_plan = choose_template("team.rachel", TEAM_TEMPLATES["Rachel"])
+            journey.append({
+                "type": "message",
+                "sender": "Rachel",
+                "timestamp": abbreviate_ts(results_date + timedelta(hours=7)),
+                "content": f"Rachel: {rachel_plan} We'll adjust intensity based on recent HRV and Recovery scores.",
+                "serviceInteractionType": "exercise_update",
+                "decisionRationale": "Adapt exercise to recovery status and biometrics.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": "Rachel"
+            })
+            chat_history.append({"role": "model", "parts": [{"text": rachel_plan}]})
+
+        # 3) Exercise updates every EXERCISE_UPDATE_INTERVAL_WEEKS
+        if week % EXERCISE_UPDATE_INTERVAL_WEEKS == 0:
+            # Rachel posts an updated exercise plan
+            rachel_note = choose_template("team.rachel", TEAM_TEMPLATES["Rachel"])
+            journey.append({
+                "type": "message",
+                "sender": "Rachel",
+                "timestamp": abbreviate_ts(current_date + timedelta(hours=3)),
+                "content": f"Rachel: {rachel_note} Exercise plan updated for the next 2 weeks.",
+                "serviceInteractionType": "exercise_update",
+                "decisionRationale": "Biweekly exercise tuning.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": "Rachel",
+                "nextSteps": "Implement 3 targeted sessions (total ~5 hrs/week)."
+            })
+            chat_history.append({"role": "model", "parts": [{"text": rachel_note}]})
+
+            # Member adherence: 50% chance to deviate
+            if random.random() < ADHERENCE_PROBABILITY:
+                # adheres
+                rohan_adherence = choose_template("member.status", MEMBER_TEMPLATES["status_update"])
+                journey.append({
+                    "type": "message",
+                    "sender": ROHAN_PROFILE["name"],
+                    "timestamp": abbreviate_ts(current_date + timedelta(hours=6)),
+                    "content": rohan_adherence,
+                    "serviceInteractionType": "member_adherence_report",
+                    "decisionRationale": "Member reports adherence / status update.",
+                    "healthMetricsSnapshot": copy.deepcopy(metrics),
+                    "specialistInvolved": None
+                })
+                chat_history.append({"role": "user", "parts": [{"text": rohan_adherence}]})
+                # slight positive metric drift
+                metrics["HRV"] = min(90, metrics["HRV"] + random.randint(0, 3))
+                metrics["RecoveryScore"] = min(95, metrics["RecoveryScore"] + random.randint(0, 5))
+            else:
+                # deviates
+                rohan_dev = choose_template("member.adherence_deviation", MEMBER_TEMPLATES["adherence_deviation"])
+                journey.append({
+                    "type": "message",
+                    "sender": ROHAN_PROFILE["name"],
+                    "timestamp": abbreviate_ts(current_date + timedelta(hours=6)),
+                    "content": rohan_dev,
+                    "serviceInteractionType": "member_adherence_report",
+                    "decisionRationale": "Member reports deviation due to travel/time constraints.",
+                    "healthMetricsSnapshot": copy.deepcopy(metrics),
+                    "specialistInvolved": None
+                })
+                chat_history.append({"role": "user", "parts": [{"text": rohan_dev}]})
+                # team adapts with a quick plan
+                adapt_persona = random.choice(["Rachel", "Advik"])
+                adapt_msg = (f"{adapt_persona}: Understood. We'll send a short hotel-friendly routine and mobility flow — "
+                             "15-minute sessions that preserve gains while traveling.")
+                journey.append({
+                    "type": "message",
+                    "sender": adapt_persona,
+                    "timestamp": abbreviate_ts(current_date + timedelta(hours=8)),
+                    "content": adapt_msg,
+                    "serviceInteractionType": "plan_adaptation",
+                    "decisionRationale": "Adaptation to maintain adherence during travel/time constraints.",
+                    "healthMetricsSnapshot": copy.deepcopy(metrics),
+                    "specialistInvolved": adapt_persona
+                })
+                chat_history.append({"role": "model", "parts": [{"text": adapt_msg}]})
+                # slight negative drift
+                metrics["RecoveryScore"] = max(20, metrics["RecoveryScore"] - random.randint(0, 6))
+
+        # 4) Travel every TRAVEL_EVERY_N_WEEKS (1 week out of every 4)
+        if week % TRAVEL_EVERY_N_WEEKS == 0:
+            # simulate travel start in that week
+            travel_start = current_date + timedelta(days=random.randint(0, 2))
+            travel_event = {
+                "type": "event",
+                "eventId": f"travel_week_{week}",
+                "timestamp": abbreviate_ts(travel_start),
+                "description": "Business travel (1 week)",
+                "details": "Jet lag protocol, nutrition adjustments, mobility plan for hotel.",
+                "decisionRationale": "Member travels frequently; proactive travel mitigation.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "serviceInteractionType": "travel_event",
+                "specialistInvolved": "Advik, Ruby"
             }
-            member_prompt = topic_prompts[chosen]
-            rohan_msg, rohan_rationale, rohan_pillar, rohan_metrics, _, _, _, _, _, rohan_next_steps, rohan_sentiment = generate_llm_response("Rohan", member_prompt, CURRENT_HEALTH_METRICS, chat_history, journey)
+            journey.append(travel_event)
+            chat_history.append({"role": "model", "parts": [{"text": "Travel event created"}]})
+
+            # pre-travel message
+            pre_travel = choose_template("team.advik", TEAM_TEMPLATES["Advik"])
             journey.append({
                 "type": "message",
-                "sender": "Rohan",
-                "timestamp": (current_date + timedelta(hours=random.randint(0, 48))).strftime("%Y-%m-%d %H:%M"),
-                "content": rohan_msg,
-                "decisionRationale": rohan_rationale,
-                "healthMetricsSnapshot": rohan_metrics,
-                "serviceInteractionType": "member_query"
+                "sender": "Advik",
+                "timestamp": abbreviate_ts(travel_start - timedelta(hours=6)),
+                "content": f"Advik: {pre_travel} I'll send a compressed jet-lag protocol tailored to the destination.",
+                "serviceInteractionType": "travel_protocol_prep",
+                "decisionRationale": "Pre-travel mitigation to reduce jet lag impact.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": "Advik"
             })
-            chat_history.append({"role": "user", "parts": [{"text": rohan_msg}]})
+            chat_history.append({"role": "model", "parts": [{"text": pre_travel}]})
 
-            # Team picks a respondent
-            responder = random.choice(list(ELYX_TEAM_PERSONAS.keys()))
-            team_msg, team_rationale, team_pillar, team_metrics, team_effect, team_monetary, team_time, team_svc, team_spec, team_next, team_sent = generate_llm_response(responder, rohan_msg, CURRENT_HEALTH_METRICS, chat_history, journey)
+            # member travel note (could be a request)
+            travel_notice = choose_template("member.travel", MEMBER_TEMPLATES["travel_notice"])
             journey.append({
                 "type": "message",
-                "sender": team_spec or responder,
-                "timestamp": (current_date + timedelta(hours=random.randint(1, 72))).strftime("%Y-%m-%d %H:%M"),
-                "content": team_msg,
-                "decisionRationale": team_rationale,
-                "healthMetricsSnapshot": team_metrics,
-                "serviceInteractionType": team_svc or "intervention_update",
-                "specialistInvolved": team_spec or responder
+                "sender": ROHAN_PROFILE["name"],
+                "timestamp": abbreviate_ts(travel_start),
+                "content": travel_notice,
+                "serviceInteractionType": "member_travel_notice",
+                "decisionRationale": "Member informs of travel and requests protocol.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": None
             })
-            chat_history.append({"role": "model", "parts": [{"text": team_msg}]})
+            chat_history.append({"role": "user", "parts": [{"text": travel_notice}]})
 
-            # Small metric drift after each interaction depending on topic (stochastic)
-            if chosen == "sleep":
-                CURRENT_HEALTH_METRICS["DeepSleep"] = max(30, min(120, CURRENT_HEALTH_METRICS["DeepSleep"] + random.randint(-10, 10)))
-            if chosen == "hrv":
-                CURRENT_HEALTH_METRICS["HRV"] = max(30, min(90, CURRENT_HEALTH_METRICS["HRV"] + random.randint(-4, 6)))
-
-        # --- Occasional proactive nudges (~30% of weeks) ---
-        if random.random() < 0.3:
-            nudger = random.choice(list(ELYX_TEAM_PERSONAS.keys()))
-            journey.append(generate_team_nudge(nudger, CURRENT_HEALTH_METRICS))
-
-        # --- Random events: back pain flare or minor illness (~rare) ---
-        if week == 5 and random.random() < 0.9:
-            # back pain intervention
-            r_msg, r_rationale, r_pillar, r_metrics, r_eff, _, _, _, r_spec, r_next, r_sent = generate_llm_response("Rachel", "couch stretch suggestion", CURRENT_HEALTH_METRICS, chat_history, journey)
+            # post-travel check-in one week after travel_start
+            post_travel_date = travel_start + timedelta(days=7)
             journey.append({
                 "type": "message",
-                "sender": r_spec or "Rachel",
-                "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
-                "content": r_msg,
-                "decisionRationale": r_rationale,
-                "healthMetricsSnapshot": r_metrics,
-                "serviceInteractionType": "intervention_update"
+                "sender": "Advik",
+                "timestamp": abbreviate_ts(post_travel_date),
+                "content": "Advik: Post-travel check-in — how's energy and sleep? Share HRV/Recovery if you can.",
+                "serviceInteractionType": "post_travel_check_in",
+                "decisionRationale": "Assess travel impact and recovery needs.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": "Advik"
             })
-        if week == 10 and random.random() < 0.25:
-            # minor illness: sick day protocol
-            d_msg, d_rationale, d_pillar, d_metrics, d_eff, _, _, _, d_spec, d_next, d_sent = generate_llm_response("Dr. Warren", "sick day protocol", CURRENT_HEALTH_METRICS, chat_history, journey)
+            chat_history.append({"role": "model", "parts": [{"text": "Post-travel check-in sent"}]})
+
+            # travel effect on metrics
+            metrics["HRV"] = max(30, metrics["HRV"] - random.randint(0, 6))
+            metrics["RecoveryScore"] = max(20, metrics["RecoveryScore"] - random.randint(0, 12))
+            metrics["DeepSleep"] = max(30, metrics["DeepSleep"] - random.randint(0, 15))
+
+        # 5) Member-initiated random queries up to ~5/week average (simulate 1-6)
+        # We'll randomly place these across the week; only add a few to journey to keep output manageable.
+        num_queries = random.randint(1, max(1, AVG_MEMBER_QUERIES_PER_WEEK))  # 1..5
+        for q_index in range(num_queries):
+            # pick topic with weights (more likely: nutrition/travel/sleep/hrv/general)
+            topics = ["nutrition_travel", "sleep", "hrv", "cognitive", "back_pain", "sick_query", "general_question", "status_update"]
+            weights = [0.18, 0.15, 0.15, 0.12, 0.09, 0.06, 0.15, 0.1]
+            topic = random.choices(topics, weights=weights, k=1)[0]
+            # choose template
+            pool_key_map = {
+                "nutrition_travel": "nutrition_travel",
+                "sleep": "status_update",
+                "hrv": "status_update",
+                "cognitive": "cognitive",
+                "back_pain": "back_pain",
+                "sick_query": "sick_query",
+                "general_question": "question_general",
+                "status_update": "status_update"
+            }
+            pool_key = pool_key_map[topic]
+            text = choose_template(f"member.{pool_key}", MEMBER_TEMPLATES[pool_key])
+            ts = current_date + timedelta(hours=random.randint(0, 48))
             journey.append({
                 "type": "message",
-                "sender": d_spec or "Dr. Warren",
-                "timestamp": current_date.strftime("%Y-%m-%d %H:%M"),
-                "content": d_msg,
-                "decisionRationale": d_rationale,
-                "healthMetricsSnapshot": d_metrics,
-                "serviceInteractionType": "health_crisis_event"
+                "sender": ROHAN_PROFILE["name"],
+                "timestamp": abbreviate_ts(ts),
+                "content": text,
+                "serviceInteractionType": "member_query",
+                "decisionRationale": None,
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": None,
+                "sentiment": detect_sentiment(text)
             })
-            # modify metrics to reflect illness
-            CURRENT_HEALTH_METRICS["RecoveryScore"] = max(5, CURRENT_HEALTH_METRICS["RecoveryScore"] - random.randint(20, 50))
-            CURRENT_HEALTH_METRICS["HRV"] = max(25, CURRENT_HEALTH_METRICS["HRV"] - random.randint(5, 15))
-            CURRENT_HEALTH_METRICS["POTS_symptoms"] = "severe"
+            chat_history.append({"role": "user", "parts": [{"text": text}]})
 
-        # --- End of week metrics drift (general) ---
-        CURRENT_HEALTH_METRICS["HRV"] = max(30, min(90, CURRENT_HEALTH_METRICS["HRV"] + random.randint(-3, 4)))
-        CURRENT_HEALTH_METRICS["RestingHR"] = max(50, min(90, CURRENT_HEALTH_METRICS["RestingHR"] + random.randint(-2, 2)))
-        CURRENT_HEALTH_METRICS["GlucoseAvg"] = max(85, min(120, CURRENT_HEALTH_METRICS["GlucoseAvg"] + random.randint(-4, 4)))
-        CURRENT_HEALTH_METRICS["RecoveryScore"] = max(10, min(95, CURRENT_HEALTH_METRICS["RecoveryScore"] + random.randint(-8, 8)))
-        CURRENT_HEALTH_METRICS["DeepSleep"] = max(30, min(120, CURRENT_HEALTH_METRICS["DeepSleep"] + random.randint(-12, 12)))
+            # Elyx team replies (choose relevant persona or knowledge base hit)
+            # Keyword detection to pick persona:
+            reply_persona = None
+            text_lower = text.lower()
+            if any(k in text_lower for k in ["apob", "apo b", "apo"]):
+                reply_persona = "Dr. Warren"
+            elif any(k in text_lower for k in ["travel", "jet", "jet lag", "seoul", "london"]):
+                reply_persona = "Advik"
+            elif any(k in text_lower for k in ["fiber", "protein", "nutrition", "snack"]):
+                reply_persona = "Carla"
+            elif any(k in text_lower for k in ["back", "couch", "stretch"]):
+                reply_persona = "Rachel"
+            elif any(k in text_lower for k in ["coordinate", "sarah", "schedule", "phlebotomist"]):
+                reply_persona = "Ruby"
+            else:
+                reply_persona = random.choice(list(ELYX_TEAM_PERSONAS.keys()))
 
-    # Deduplicate exact consecutive repeats in journey (safety)
-    cleaned_journey = []
-    last_content = None
-    repeat_count = 0
-    for item in journey:
-        content = item.get("content") or item.get("description") or ""
-        if content == last_content:
-            repeat_count += 1
+            # Knowledge base hit
+            kb_hit = None
+            for kb_key in ELYX_KNOWLEDGE_BASE:
+                if kb_key in text_lower or any(word in text_lower for word in kb_key.split()):
+                    kb_hit = kb_key
+                    break
+
+            if kb_hit:
+                kb = ELYX_KNOWLEDGE_BASE[kb_hit]
+                reply = f"{kb['specialist']}: {kb['summary']} {kb['advice']}"
+                persona_used = kb['specialist']
+            else:
+                # pick a persona reply template
+                reply_template = choose_template(f"team.{reply_persona}", TEAM_TEMPLATES.get(reply_persona, ["We're on it."]))
+                persona_used = reply_persona
+                reply = f"{persona_used}: {reply_template}"
+
+            journey.append({
+                "type": "message",
+                "sender": persona_used,
+                "timestamp": abbreviate_ts(ts + timedelta(hours=2)),
+                "content": reply,
+                "serviceInteractionType": "response_to_member",
+                "decisionRationale": "Responding to member's query with contextual advice.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": persona_used,
+                "sentiment": detect_sentiment(reply)
+            })
+            chat_history.append({"role": "model", "parts": [{"text": reply}]})
+
+            # small metric effects based on topic & reply
+            if "sleep" in text_lower:
+                metrics["DeepSleep"] = max(30, min(120, metrics["DeepSleep"] + random.randint(-10, 12)))
+            if "hrv" in text_lower or "recovery" in text_lower:
+                metrics["HRV"] = max(30, min(100, metrics["HRV"] + random.randint(-4, 6)))
+            if "fiber" in text_lower or "protein" in text_lower:
+                metrics["GlucoseAvg"] = max(85, min(130, metrics["GlucoseAvg"] + random.randint(-5, 3)))
+
+        # 6) Occasional events: back pain flares, illness week, or new goal (piano)
+        if week == 5:
+            # back pain flare
+            bp_msg = "Rachel: Try the couch stretch — it's a 2-minute mobility move that often helps lower back tightness. Report back tomorrow."
+            journey.append({
+                "type": "message",
+                "sender": "Rachel",
+                "timestamp": abbreviate_ts(current_date + timedelta(hours=1)),
+                "content": bp_msg,
+                "serviceInteractionType": "intervention_update",
+                "decisionRationale": "Short mobility intervention to address reported lower back pain.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": "Rachel"
+            })
+            journey.append({
+                "type": "event",
+                "eventId": "back_pain_week5",
+                "timestamp": abbreviate_ts(current_date + timedelta(hours=1)),
+                "description": "Back pain intervention (couch stretch)",
+                "details": "2-minute daily couch stretch assigned.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics)
+            })
+            # minor improvement
+            metrics["BackPain"] = "mild"
+        if week == 10:
+            # illness (major setback)
+            illness_msg = ("Dr. Warren: Biotelemetry suggests a viral infection. "
+                           "Initiate Elyx Sick Day Protocol: rest, hydration, delay major meetings. Ruby will reschedule.")
+            journey.append({
+                "type": "message",
+                "sender": "Dr. Warren",
+                "timestamp": abbreviate_ts(current_date + timedelta(hours=1)),
+                "content": illness_msg,
+                "serviceInteractionType": "health_crisis_event",
+                "decisionRationale": "Acute illness detected via biometrics; prioritize recovery.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": "Dr. Warren"
+            })
+            journey.append({
+                "type": "event",
+                "eventId": "illness_week10",
+                "timestamp": abbreviate_ts(current_date + timedelta(hours=1)),
+                "description": "Major Illness Setback",
+                "details": "Sick Day Protocol activated.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics)
+            })
+            # significant drop
+            metrics["RecoveryScore"] = max(5, metrics["RecoveryScore"] - random.randint(20, 50))
+            metrics["POTS_symptoms"] = "severe"
+        if week == 15:
+            # add a new goal (piano)
+            piano_msg = ("Neel: Adding weekly piano practice as a cognitive-longevity goal. "
+                         "Track subjective focus and HRV alongside practice.")
+            journey.append({
+                "type": "message",
+                "sender": "Neel",
+                "timestamp": abbreviate_ts(current_date + timedelta(hours=2)),
+                "content": piano_msg,
+                "serviceInteractionType": "goal_setting_event",
+                "decisionRationale": "Introduce non-medical cognitive investment to improve stress resilience.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics),
+                "specialistInvolved": "Neel"
+            })
+            journey.append({
+                "type": "event",
+                "eventId": "piano_goal_week15",
+                "timestamp": abbreviate_ts(current_date + timedelta(hours=2)),
+                "description": "Weekly piano practice added",
+                "details": "Cognitive practice to be tracked weekly.",
+                "healthMetricsSnapshot": copy.deepcopy(metrics)
+            })
+
+        # 7) general drift in metrics (small random walk)
+        metrics["HRV"] = max(30, min(90, metrics["HRV"] + random.randint(-3, 4)))
+        metrics["RestingHR"] = max(50, min(85, metrics["RestingHR"] + random.randint(-2, 2)))
+        metrics["GlucoseAvg"] = max(85, min(130, metrics["GlucoseAvg"] + random.randint(-5, 5)))
+        metrics["RecoveryScore"] = max(10, min(95, metrics["RecoveryScore"] + random.randint(-8, 8)))
+        metrics["DeepSleep"] = max(30, min(120, metrics["DeepSleep"] + random.randint(-12, 12)))
+
+    # final: write to file for inspection and return
+    try:
+        with open(OUTPUT_JOURNEY_FILEPATH, "w") as f:
+            json.dump(journey, f, indent=2)
+    except Exception:
+        pass
+
+    return journey
+
+
+# ---------------------------
+# Explain-decision endpoint (keyword-agent + sentiment-aware phrasing)
+# ---------------------------
+def keyword_agent_explain(query: str, journey_data_context: list):
+    """
+    Find relevant item(s) in journey_data_context based on keywords & rationale,
+    detect sentiment of the query, and return a friendly explanation plus detected sentiment.
+    """
+
+    if not query:
+        return {"error": "Query is required."}, 400
+
+    q_lower = query.lower()
+    sentiment = detect_sentiment(query)
+
+    # Keyword map (expandable)
+    keyword_map = {
+        "exercise": ["exercise", "workout", "training", "exercise_update", "plan_adaptation"],
+        "travel": ["travel", "jet", "jet lag", "travel_event", "post_travel"],
+        "diagnostic": ["diagnostic", "panel", "lab", "test", "ApoB", "apob", "biomarker"],
+        "sleep": ["sleep", "deepsleep", "insomnia", "hrv", "recovery"],
+        "stress": ["stress", "burnout", "cognitive", "focus", "meditation"],
+        "nutrition": ["fiber", "protein", "carla", "nutrition", "glucose"],
+        "back": ["back", "couch stretch", "mobility"],
+        "illness": ["sick", "illness", "viral", "sick day", "sick day protocol"],
+        "piano": ["piano", "cognitive", "goal"]
+    }
+
+    # Build searchable strings and search with both keyword map and direct query match
+    relevant_items = []
+    for item in reversed(journey_data_context):
+        # only examine messages/events with rationale or content
+        search_text = " ".join([
+            str(item.get("content", "")),
+            str(item.get("description", "")),
+            str(item.get("details", "")),
+            str(item.get("decisionRationale", "")),
+            str(item.get("nextSteps", "")),
+        ]).lower()
+        matched = False
+        # 1) direct substring match
+        if q_lower in search_text:
+            matched = True
         else:
-            repeat_count = 0
-        # allow up to MAX_REPEAT identical consecutive entries
-        if repeat_count <= MAX_REPEAT:
-            cleaned_journey.append(item)
-        last_content = content
+            # 2) keyword map matching
+            for k, syns in keyword_map.items():
+                if k in q_lower or any(s in q_lower for s in syns):
+                    if any(s in search_text for s in syns) or k in search_text:
+                        matched = True
+                        break
+        if matched:
+            relevant_items.append(item)
+            # collect up to 6 relevant items
+            if len(relevant_items) >= 6:
+                break
 
-    return jsonify(cleaned_journey)
+    # Compose empathetic prefix depending on detected sentiment
+    if sentiment in ["angry", "frustrated"]:
+        prefix = "I understand this is frustrating — it's valid to feel that way. Here's what happened and why:"
+    elif sentiment == "sad":
+        prefix = "I’m sorry you’re feeling discouraged. Here's the background and how we plan to help:"
+    elif sentiment == "curious":
+        prefix = "Great question — here's the reasoning in plain terms:"
+    elif sentiment == "positive":
+        prefix = "Nice to see the positive note — here's the context:"
+    elif sentiment == "nonchalant":
+        prefix = "Sure — here's a quick explanation:"
+    else:
+        prefix = "Here’s the reasoning behind that decision:"
 
-# --------------------------
-# API: Explain decision (keyword agent + tone aware)
-# --------------------------
-@app.route('/api/explain-decision', methods=['POST'])
+    # If we have relevant items, create a multi-item explanation
+    if relevant_items:
+        parts = [prefix]
+        for idx, it in enumerate(relevant_items[:5], start=1):
+            header = f"\n\n{idx}. On {it.get('timestamp', 'N/A')} — "
+            title = it.get('sender', '') + (f": {it.get('content')[:140]}..." if it.get('content') else it.get('description', ''))
+            rationale = it.get('decisionRationale') or it.get('details') or "No explicit rationale recorded."
+            metrics = it.get('healthMetricsSnapshot')
+            metrics_txt = ""
+            if metrics:
+                # include only a few load-bearing metrics
+                for k in ["HRV", "ApoB", "GlucoseAvg", "RecoveryScore"]:
+                    if k in metrics:
+                        metrics_txt += f"{k}: {metrics[k]}, "
+                metrics_txt = metrics_txt.rstrip(", ")
+                if metrics_txt:
+                    metrics_txt = f"\nMetrics then: {metrics_txt}"
+            next_steps = it.get('nextSteps')
+            part = f"{header}{title}\n**Rationale:** {rationale}{metrics_txt}"
+            if next_steps:
+                part += f"\n**Next steps:** {next_steps}"
+            parts.append(part)
+        explanation_text = "\n".join(parts)
+    else:
+        # fallback: provide a generic but informative response using latest metrics if available
+        latest = journey_data_context[-1] if journey_data_context else {}
+        latest_metrics = latest.get("healthMetricsSnapshot", {}) if latest else {}
+        hrv = latest_metrics.get("HRV", "N/A")
+        apo = latest_metrics.get("ApoB", "N/A")
+        recovery = latest_metrics.get("RecoveryScore", "N/A")
+        fallback_templates = [
+            f"We didn't find a direct match in your journey for that phrase. Based on your latest snapshot (HRV {hrv} ms, ApoB {apo} mg/dL, Recovery {recovery}%), the likely reason for plan changes is to optimize recovery and reduce cardiovascular risk.",
+            f"Couldn't find a specific decision in the timeline for that query. Generally, when we change a plan it's due to biomarker trends (e.g., ApoB or glucose), wearable trends (HRV/recovery), or logistical constraints like travel or adherence."
+        ]
+        explanation_text = prefix + "\n\n" + random.choice(fallback_templates)
+
+    return {"explanation": explanation_text, "detected_sentiment": sentiment}
+
+# ---------------------------
+# Flask endpoints
+# ---------------------------
+@app.route("/api/generate-journey", methods=["POST"])
+def api_generate_journey():
+    """
+    Generate 8 months of journey data and return it as JSON.
+    POST body is ignored for now; accepts optional 'seed' for reproducible generation.
+    """
+    data = request.json or {}
+    seed = data.get("seed", SEED)
+    journey = generate_8_month_journey(seed=seed)
+    return jsonify(journey), 200
+
+@app.route("/api/explain-decision", methods=["POST"])
 def api_explain_decision():
     data = request.json or {}
-    query = (data.get('query') or "").strip()
-    journey_data_context = data.get('journeyData', []) or []
-
+    query = data.get("query", "")
+    journey_data_context = data.get("journeyData", [])
     if not query:
         return jsonify({"error": "Query is required."}), 400
 
-    query_lower = query.lower()
-    sentiment = detect_sentiment(query)
+    resp = keyword_agent_explain(query, journey_data_context)
+    # If resp is (dict, code) pair from earlier, handle; otherwise return dict
+    if isinstance(resp, tuple):
+        return jsonify(resp[0]), resp[1]
+    return jsonify(resp), 200
 
-    # Keyword map for matching
-    keyword_map = {
-        "exercise": ["exercise", "workout", "exercise_update", "plan_adaptation"],
-        "travel": ["travel", "jet", "jet lag", "travel_protocol", "travel_event"],
-        "diagnostic": ["diagnostic", "panel", "lab", "apo", "apob", "blood"],
-        "sleep": ["sleep", "deep", "deepsleep", "insomnia"],
-        "stress": ["stress", "hrv", "recovery"],
-        "digestion": ["digestion", "gerd", "stomach", "food"],
-        "migraine": ["migraine", "headache", "headaches"],
-        "illness": ["sick", "illness", "viral", "infection"]
-    }
-
-    # Try keyword-based search first (scan journey items in reverse for recency)
-    relevant_item = None
-    for item in reversed(journey_data_context):
-        combined = " ".join([
-            str(item.get('content') or ""),
-            str(item.get('description') or ""),
-            str(item.get('details') or ""),
-            str(item.get('decisionRationale') or "")
-        ]).lower()
-        matched = False
-        for key, synonyms in keyword_map.items():
-            if key in query_lower or any(syn in query_lower for syn in synonyms):
-                if any(syn in combined for syn in synonyms) or key in combined:
-                    relevant_item = item
-                    matched = True
-                    break
-        if matched:
-            break
-
-    # fallback: direct substring match against decisionRationale or content
-    if not relevant_item:
-        for item in reversed(journey_data_context):
-            combined = " ".join([
-                str(item.get('content') or ""),
-                str(item.get('description') or ""),
-                str(item.get('details') or ""),
-                str(item.get('decisionRationale') or "")
-            ]).lower()
-            if query_lower in combined:
-                relevant_item = item
-                break
-
-    # empathetic prefix based on sentiment
-    if sentiment in ["angry", "frustrated"]:
-        prefix = "I understand your frustration. Here's what happened and why we made that decision: "
-    elif sentiment == "sad":
-        prefix = "I'm sorry you're feeling discouraged. Here's the reasoning in simple terms: "
-    elif sentiment == "curious":
-        prefix = "Great question — here's the explanation: "
-    elif sentiment == "nonchalant":
-        prefix = "Sure — quick explanation: "
-    elif sentiment == "positive":
-        prefix = "Great to hear! For clarity: "
+@app.route("/api/journey-file", methods=["GET"])
+def api_journey_file():
+    """
+    Return stored file if available for download/inspection.
+    """
+    if os.path.exists(OUTPUT_JOURNEY_FILEPATH):
+        try:
+            return send_file(OUTPUT_JOURNEY_FILEPATH, mimetype="application/json", as_attachment=True,
+                             download_name=os.path.basename(OUTPUT_JOURNEY_FILEPATH))
+        except Exception as e:
+            return jsonify({"error": "Unable to send file", "detail": str(e)}), 500
     else:
-        prefix = "Here's some context and the rationale: "
+        return jsonify({"error": "Journey file not generated yet. Call /api/generate-journey first."}), 404
 
-    if relevant_item:
-        explanation_text = relevant_item.get('content') or relevant_item.get('description') or relevant_item.get('details') or ""
-        rationale = relevant_item.get('decisionRationale')
-        pillar = relevant_item.get('pillar')
-        metrics_snap = relevant_item.get('healthMetricsSnapshot')
-        effect = relevant_item.get('interventionEffect')
-        monetary = relevant_item.get('monetaryFactor') or relevant_item.get('monetary')
-        time_eff = relevant_item.get('timeEfficiency')
-        specialist = relevant_item.get('specialistInvolved') or relevant_item.get('sender')
-        next_steps = relevant_item.get('nextSteps')
-        formatted = prefix + explanation_text + "\n\n"
-        if rationale:
-            formatted += f"**Rationale:** {rationale}\n"
-        if pillar:
-            formatted += f"**Pillar Impact:** {pillar}\n"
-        if effect:
-            formatted += f"**Observed Effect:** {effect}\n"
-        if monetary:
-            formatted += f"**Monetary Factor:** {monetary}\n"
-        if time_eff:
-            formatted += f"**Time Efficiency:** {time_eff}\n"
-        if specialist:
-            formatted += f"**Specialist Involved:** {specialist}\n"
-        if next_steps:
-            formatted += f"**Following Steps:** {next_steps}\n"
-        if metrics_snap:
-            formatted += f"**Metrics at Time:** {json.dumps(metrics_snap, indent=2)}\n"
-        return jsonify({"explanation": formatted, "detected_sentiment": sentiment})
-
-    # If nothing found, generate a sensible fallback explanation using generate_llm_response
-    fallback_text, rationale, pillar, metrics_snap, effect, monetary, time_eff, svc_type, specialist, next_steps, sent = generate_llm_response(
-        role="Ruby",
-        prompt_context=query,
-        current_metrics=CURRENT_HEALTH_METRICS,
-        chat_history=[],
-        journey_data_so_far=[]
-    )
-    formatted = prefix + fallback_text + "\n\n"
-    if rationale:
-        formatted += f"**Rationale:** {rationale}\n"
-    if pillar:
-        formatted += f"**Pillar Impact:** {pillar}\n"
-    if metrics_snap:
-        formatted += f"**Metrics at Time:** {json.dumps(metrics_snap, indent=2)}\n"
-    return jsonify({"explanation": formatted, "detected_sentiment": sentiment})
-
-# --------------------------
-# Run
-# --------------------------
-if __name__ == '__main__':
+# ---------------------------
+# Run app
+# ---------------------------
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    app.run(host="0.0.0.0", port=port, debug=debug)
+
