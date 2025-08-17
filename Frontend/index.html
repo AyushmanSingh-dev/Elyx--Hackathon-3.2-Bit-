@@ -102,11 +102,16 @@
         // --- Sample Journey Data (Embedded) ---
         // This data is now defined directly within this script, no import needed.
         // This acts as a fallback or initial data if the backend fetch fails.
-        const sampleJourneyData = [
-            { type: "message", sender: "Rohan", timestamp: "2025-08-01 10:00", content: "Initial message content...", pillar: null, relatedTo: null, decisionRationale: "Initial onboarding message.", healthMetricsSnapshot: { HRV: 45, ApoB: 105, GlucoseAvg: 95, RestingHR: 60, RecoveryScore: 70, DeepSleep: 60, POTS_symptoms: "moderate", BackPain: "mild" }, interventionEffect: null, monetaryFactor: null, timeEfficiency: null, serviceInteractionType: "onboarding", specialistInvolved: null, nextSteps: "Complete initial assessments.", sentiment: "neutral" },
-            { type: "event", eventId: "sample_event_1", timestamp: "2025-08-05 12:00", description: "Sample Event: Initial Assessment Complete", details: "Baseline health data collected.", decisionRationale: "Standard procedure to establish health baseline.", healthMetricsSnapshot: { HRV: 50, ApoB: 90, GlucoseAvg: 92, RestingHR: 58, RecoveryScore: 75, DeepSleep: 65, POTS_symptoms: "mild", BackPain: "mild" }, interventionEffect: "Data collected successfully.", monetaryFactor: "Covered by plan.", timeEfficiency: "Efficient process.", pillar: "General", nextSteps: "Review results with Dr. Warren." },
-            { type: "message", sender: "Dr. Warren", timestamp: "2025-08-10 09:00", content: "Sample advice from Dr. Warren: Focus on hydration and light walks.", pillar: "Pillar 3", relatedTo: "Sample concern", decisionRationale: "Sample medical advice rationale for initial stress.", healthMetricsSnapshot: { HRV: 55, ApoB: 85, GlucoseAvg: 90, RestingHR: 57, RecoveryScore: 80, DeepSleep: 70, POTS_symptoms: "mild", BackPain: "none" }, interventionEffect: "Partially effective", monetaryFactor: "Low cost", timeEfficiency: "Quick integration", specialistInvolved: "Dr. Warren", nextSteps: "Monitor hydration, report subjective stress.", sentiment: "authoritative" }
-        ];
+        const sampleJourneyData = {
+            timeline_events: [
+                { type: "event", eventId: "sample_onboarding", timestamp: "2025-08-01 10:00", description: "Sample Onboarding Initiated", details: "Initial setup with sample data.", decisionRationale: "Standard onboarding.", healthMetricsSnapshot: { HRV: 45, ApoB: 105, GlucoseAvg: 95, RestingHR: 60, RecoveryScore: 70, DeepSleep: 60, POTS_symptoms: "moderate", BackPain: "mild" }, interventionEffect: null, monetaryFactor: null, timeEfficiency: null, serviceInteractionType: "onboarding", specialistInvolved: "Elyx Team", nextSteps: "Review sample data." }
+            ],
+            chat_messages: [
+                { sender: "Rohan", content: "Hello Elyx, this is a sample message.", timestamp: "2025-08-01 10:00", sentiment: "neutral", serviceInteractionType: "member-initiated query", specialistInvolved: null },
+                { sender: "Elyx", content: "Welcome to Elyx! This is a sample response from your AI.", timestamp: "2025-08-01 10:05", sentiment: "positive", serviceInteractionType: "proactive check-in", specialistInvolved: "Elyx Team" }
+            ]
+        };
+
 
         // --- Main App Component ---
         function App() {
@@ -116,7 +121,7 @@
             const [decisionQuery, setDecisionQuery] = useState('');
             const [decisionResponse, setDecisionResponse] = useState('');
             const [isLoadingDecision, setIsLoadingDecision] = useState(false);
-            const [journeyData, setJourneyData] = useState([]);
+            const [journeyData, setJourneyData] = useState([]); // This will hold timeline_events
             const [isGeneratingConversation, setIsGeneratingConversation] = useState(true); // Initially true to show loading
             const [chatMessages, setChatMessages] = useState([]); // New state for chat messages in Messages tab
             const chatBoxRef = useRef(null); // Ref for auto-scrolling chat box
@@ -140,18 +145,17 @@
                     });
                     const data = await response.json();
                     if (response.ok) {
-                        setJourneyData(data);
-                        // Populate chatMessages with all messages from the generated journey
-                        setChatMessages(data.filter(item => item.type === 'message'));
+                        setJourneyData(data.timeline_events); // Set timeline_events for Journey tab
+                        setChatMessages(data.chat_messages); // Set chat_messages for Messages tab
                     } else {
                         console.error("Error fetching journey data:", data.error || "Unknown error");
-                        setJourneyData(sampleJourneyData); // Fallback to sample data on error
-                        setChatMessages(sampleJourneyData.filter(item => item.type === 'message'));
+                        setJourneyData(sampleJourneyData.timeline_events); // Fallback to sample timeline data
+                        setChatMessages(sampleJourneyData.chat_messages); // Fallback to sample chat data
                     }
                 } catch (error) {
                     console.error("Network error fetching journey data:", error);
-                    setJourneyData(sampleJourneyData); // Fallback to sample data on network error
-                    setChatMessages(sampleJourneyData.filter(item => item.type === 'message'));
+                    setJourneyData(sampleJourneyData.timeline_events); // Fallback to sample timeline data
+                    setChatMessages(sampleJourneyData.chat_messages); // Fallback to sample chat data
                 } finally {
                     setIsGeneratingConversation(false);
                 }
@@ -221,7 +225,7 @@
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({ query: decisionQuery, journeyData: journeyData }),
+                        body: JSON.stringify({ query: decisionQuery, journeyData: journeyData }), // Pass timeline_events as journeyData
                     });
 
                     const data = await response.json();
@@ -455,7 +459,7 @@
                             setChatMessages(prevMessages => [...prevMessages, userMessage]);
                             setCurrentChatInput(''); // Clear input immediately
 
-                            // Prepare chat history for backend (only content and role for LLM context)
+                            // Prepare chat history for backend (only content and role)
                             const chatHistoryForBackend = chatMessages.map(msg => ({
                                 role: msg.sender === "Rohan" ? "user" : "model",
                                 parts: [{ text: msg.content }]
@@ -580,7 +584,7 @@
                                         React.createElement('p', { className: "text-sm text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Rachel's Chats"))
                                     ),
                                     React.createElement('div', { className: "bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300" },
-                                        React.createElement('h3', { className : "text-xl font-medium mb-2 text-indigo-700" }, "Dr. Evans ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Stress Management)")),
+                                        React.createElement('h3', { className: "text-xl font-medium mb-2 text-indigo-700" }, "Dr. Evans ", React.createElement('span', { className: "text-sm text-gray-500" }, "(Stress Management)")),
                                         React.createElement('p', { className: "text-gray-600 mb-3" }, "**Role:** Provides tools and strategies for stress resilience and cognitive load management.", React.createElement('br'), "**Voice:** Practical, insightful, calm (assumed based on context)."),
                                         React.createElement('p', { className: "text-sm mt-3 text-gray-500" }, React.createElement('a', { href: "#", className: "text-indigo-600 hover:underline" }, "View Dr. Evans' Chats"))
                                     ),
